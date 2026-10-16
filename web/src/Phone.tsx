@@ -13,7 +13,7 @@ const pretty = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3"
 const spaced = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 $1 $2 $3");
 
 export default function Phone() {
-  const [lcd, setLcd] = useState<Lcd>({ lines: [["big", "NOKIA"], "Reach Line", "loading"], status: "", soft: "", on: false });
+  const [lcd, setLcd] = useState<Lcd>({ lines: [["big", "NOKIA"], "Call Me Maybe", "loading"], status: "", soft: "", on: false });
   const [number, setNumber] = useState("+18654598142");
   const [inCall, setInCall] = useState(false);
   const [pressed, setPressed] = useState("");
@@ -29,7 +29,7 @@ export default function Phone() {
 
   const show = (lines: Line[], status = "", soft = "Call") => setLcd((l) => ({ ...l, lines, status, soft }));
   const err = (who: string, text: string) => setErrors((e) => [{ who, text }, ...e]);
-  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "Reach Line", "Navi = call"]); };
+  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "Call Me Maybe", "Navi = call"]); };
   const elapsed = () => fmt(Math.round((Date.now() - startedAt.current) / 1000));
 
   async function dial() {
@@ -120,7 +120,7 @@ export default function Phone() {
       </div>
 
       <aside className="panel" aria-label="Live data">
-        <header><h1>Reach Line</h1><span className="num">{spaced(number)}</span></header>
+        <header><h1>Call Me Maybe</h1><span className="num">{spaced(number)}</span></header>
         <section>
           <h2>Water points <span className="live-dot" title="live" /><span className="hint">live, every 2 s</span></h2>
           <table className={`wp${hot.size ? " focus" : ""}`}>
