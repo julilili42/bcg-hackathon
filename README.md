@@ -1,127 +1,140 @@
-# Reach Gateway
+# WaterLine
 
-Phone-in water point status line. A caller says the name of a water point and whether it works,
-in **Swahili**, **English** or **German**. The system records it and answers right away with the nearest
-working water point. Also works over SMS.
+One report helps the next village.
 
-## Quick start for the team
+Text-first prototype with an optional Twilio phone adapter: a resident reports a change and asks a question in the same message. Another resident can immediately retrieve that report with dates and provenance. All included villages, assets and observations are **fictional synthetic demo data**, not verified Ugandan infrastructure.
 
-Everything runs on one Twilio account and one phone number (**+1 865 459 8142**).
-Only one machine can receive the calls at a time: whoever runs the tunnel runs the demo.
+## Run
 
-```bash
-git clone <repo> && cd reach-gateway
-uv sync                                   # Python 3.12 venv + deps
-uv run scripts/download_models.py         # the two TTS models, ~300 MB, once
-(cd web && npm install && npm run build)  # the React UI (phone, dashboard, map) -> web/dist
-cp local.settings.json.example local.settings.json
-#   -> fill in TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and ANTHROPIC_API_KEY (ask Julian, never commit them)
-uv run func start                         # local host on :7071, needs Azure Functions Core Tools
-scripts/tunnel.sh                         # second terminal: public URL + Twilio now sends calls/SMS to YOUR machine
+Python 3.12 is tested. Docker runs Qdrant; Anthropic API credentials enable live interpretation and answers.
+
+```sh
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Fill in ANTHROPIC_API_KEY in .env; never commit credentials.
+# ANTHROPIC_MODEL defaults to claude-sonnet-4-6; no Azure deployment is needed.
+docker compose up -d
+python seed.py
+python demo.py
 ```
 
-Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboard
+`demo.py` prints the fixed-clock four-turn story, interpretation, saved fact IDs, selected evidence, timestamps and answers. `python demo.py --interactive` accepts free text. Reports are stored and reused; use opaque demo IDs and synthetic observations. The seeded clock is October 16, 2026; old observations are not proof of a current condition.
 
-Tools you need once: `uv` (brew install uv), `node` (brew install node), `cloudflared` (brew install cloudflared),
-Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
-No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `scripts/set_webhooks.sh`.
+For the API:
 
-```
-Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-KE / en-US)
-                        /api/voice/handle ──▶ gateway/brain.py ──▶ SQL (waterpoints, events)
-                        ◀── audio reply (local MMS-TTS) or text ◀──┘
-Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
+```sh
+uvicorn app:app --reload
+curl -X POST http://localhost:8000/interact \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"The Alero clinic pump broke this morning. Is the school borehole working?","user_id":"demo-user-a","turn_id":"my-demo-turn-001"}'
 ```
 
-| Path | Does |
-|---|---|
-| `function_app.py` | Azure Functions entry: Twilio webhooks + TwiML, `/api/events` JSON, serves `web/dist` |
-| `gateway/brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
-| `gateway/tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
-| `gateway/db.py` | `events` + `waterpoints`, Azure SQL or SQLite (`db/events.db`) |
-| `gateway/phone.py` | Twilio Voice access tokens for the browser phone |
-| `db/schema.sql` | Azure SQL schema (SQLite is created on the fly with the same shape) |
-| `data/waterpoints.csv` | seed data: 15 real water points in Soga ward, Kibaha (names, coordinates, status from the Ministry of Water / Taarifa water point mapping 2011-2013) |
-| `web/` | React + TypeScript (Vite): `src/Phone.tsx` (Nokia 3310 photo, real Twilio call, live database), `src/Dashboard.tsx`, `src/Map.tsx`. `npm run dev` rebuilds on save |
-| `scripts/smoke.sh` | simulates Twilio against the local host |
-| `scripts/tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
-| `scripts/set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
-| `scripts/download_models.py` | fetches the two TTS models into `models/` |
-| `scripts/phone_setup.py` | one-time Twilio API key + TwiML App for the browser phone |
-| `scripts/measure_phone.py` | measures LCD and key hit areas on the Nokia photo → `web/src/hits.ts` |
+Interactive API documentation: http://localhost:8000/docs. Reuse a turn ID when retrying the same message; use a new ID for a new observation. The API generates its own UTC receipt time and rejects client timestamps. The CLI uses the trusted `handle_turn()` function directly for fixed-clock rehearsals. An outage after writing may leave reports saved; retry with the same ID. Empty messages ask for clarification.
 
-## Run locally
+## Verify
 
-```bash
-uv sync                                  # Python 3.12 venv + deps
-uv run scripts/download_models.py        # ~300 MB, once. Without it: Twilio's own voice (English only)
-uv run -m gateway.brain && uv run -m gateway.tts   # self-checks
-(cd web && npm install && npm run build) # React UI -> web/dist (npm run dev = rebuild on save)
-cp local.settings.json.example local.settings.json   # fill in Twilio values
-func start                               # http://localhost:7071  (uses .venv)
-scripts/smoke.sh                         # second terminal
+```sh
+python -m pytest -q
+RUN_QDRANT_SMOKE=1 python -m pytest -q
 ```
 
-Public URL for a real phone: `scripts/tunnel.sh` starts cloudflared and points the Twilio number at it.
-Quick tunnels die after a while; "We're sorry, an application error has occurred" on the phone
-means: run `scripts/tunnel.sh` again. Only one machine can own the webhooks at a time.
+Default tests mock external services. The integration test requires running Qdrant and downloads the FastEmbed model on first use. It exercises actual dense retrieval, server-side BM25, native RRF, idempotent writes and the graph's cross-user sharing loop. Only Anthropic chat calls are mocked. Live LLM quality requires credentials and a rehearsal with `python demo.py`; unit tests do not validate the model's interpretations.
 
-## Browser phone (for the pitch)
+## Test recorded audio locally, without a call
 
-`http://localhost:7071/api/phone` shows a feature phone in the browser. The green key places a
-**real** call through Twilio's Voice SDK (WebRTC): Twilio hits the same `/api/voice` webhook as a
-phone call, the laptop microphone is the handset, the laptop speakers play the Swahili/English
-answer, and the panel next to the phone shows what was understood and answered. Digit keys send
-DTMF during the call (2 = English). Keyboard works too: digits, Enter = call, Esc = hang up.
+Record a short English message in Voice Memos or QuickTime and save/export it as M4A or WAV. Install the optional local transcription dependency:
 
-One-time setup (creates a Twilio API key and a TwiML App, writes their ids into `local.settings.json`):
-
-```bash
-uv run scripts/phone_setup.py
-scripts/tunnel.sh      # or scripts/set_webhooks.sh <url>: also points the TwiML App at your host
+```sh
+source .venv/bin/activate
+pip install -r requirements-audio.txt
 ```
 
-`?debug=1` on the phone page tints the key hit areas; they come from `scripts/measure_phone.py`
-(`uv run --with pillow scripts/measure_phone.py`, then rebuild `web/`).
+With the server running (`uvicorn app:app --port 8000`), send the recording:
 
-Needs: microphone permission in the browser, and a network that allows WebRTC (test the venue
-Wi-Fi beforehand). Fallback is always a real phone calling the number.
+```sh
+python audio_demo.py /path/to/message.m4a
+```
 
-The chassis is a photo of a real Nokia 3310:
-[Nokia 3310 Blue R7309170 (retouch).png](https://commons.wikimedia.org/wiki/File:Nokia_3310_Blue_R7309170_(retouch).png)
-from Wikimedia Commons, Free Art License. The LCD and the key hit areas are HTML positioned in
-percent of the photo (measured by colour detection, see git history for the script). LCD font:
-Nokia Cellphone FC (Zeh Fernando, free for personal use). The right side is the live database:
-water points with status and age, plus the last calls, refreshed every 2 s.
+`audio_demo.py` runs the local Whisper `base.en` model on CPU, prints the completed transcript, and sends it as JSON to the existing `/interact` endpoint. It displays the normal answer, intent and sources. Only the transcript is sent to WaterLine; the recording is not uploaded or stored by the API. The local model downloads on the first run, then is cached in `.cache/whisper`. No additional speech API key is needed. Transcription accuracy, especially place names, must be checked with real recordings.
 
-## Settings (`local.settings.json` / Azure App Settings)
+To check transcription without storing a report, run `python audio_demo.py message.m4a --transcribe-only`. To hear the returned answer on macOS, add `--speak`; this uses the system voice, not Google/Twilio's voice. `--user-id demo-user-b` simulates another resident. Reuse `--turn-id YOUR_ID` when retrying the same recording, or use the automatically generated ID for a new message. `--url http://127.0.0.1:8000` selects the API origin.
 
-| Key | |
-|---|---|
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | from console.twilio.com |
-| `TWILIO_VALIDATE` | `1` in Azure: only signed Twilio requests. `0` locally for smoke.sh |
-| `ANTHROPIC_API_KEY` | optional; `brain.py` then uses Claude Opus 5.5 (effort low, ~2 s). Without it: keyword matching |
-| `SQL_CONN` | optional; without it SQLite `events.db` |
-| `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `scripts/phone_setup.py` |
+This exercises local audio transcription and the live knowledge engine; the Twilio call transport and its speech providers are tested separately by calling the number.
 
-## Call flow
+## Implementation
 
-1. First call from a number: language menu, 1 Swahili, 2 English, 3 German. The choice is stored
-   per number (`callers` table); later calls skip the menu. A digit during the question switches.
-2. One free sentence. Twilio transcribes with Google chirp_3 (`sw-KE`, `en-US`, `de-DE`).
-   `brain.understand()` asks Claude for `{point, status, lang}`; loose name matching survives
-   speech-recognition errors.
-3. Nothing understood or nothing said: "say it again", up to three attempts in total. Low Twilio confidence (< 0.6): "Did you say X? 1 = yes".
-4. `brain.answer()` sets `ok|broken|empty` if the caller reported and answers with the nearest
-   working point and walking minutes. Then "press 1 to report another", else goodbye.
-5. Replies are spoken with MMS-TTS (`facebook/mms-tts-swh`, `-eng`, `-deu`). SMS answers in the
-   language the message was written in.
+`knowledge.py` uses one active collection selected by `QDRANT_COLLECTION` (default `water_knowledge`), with named 384-dimensional dense vectors and IDF-enabled BM25. `cloud_inference=True` forwards BM25 document inference to Qdrant. Both filtered retrieval paths feed native RRF. Exact status-history scrolling prevents the latest observation from disappearing below semantic top-k; it fails explicitly above the demo's 100-record bound.
 
-Why speech-to-text is Twilio's and not a local model: Twilio Gather with chirp_3 supports Swahili out
-of the box and Whisper-small is weak on Swahili. Text-to-speech is local because Twilio has no Swahili voice.
+## Test intent detection with an empty collection
 
-## Deploy to Azure
+Set `QDRANT_COLLECTION=water_knowledge_test` in `.env` and restart Uvicorn. Startup creates the collection and indexes if missing, without seeding it. Existing collections and reports are preserved. To get a fresh empty workspace later, choose a new collection name. All interfaces use the same selected collection. The API returns `knowledge_collection` so you can verify which one is active.
 
-Function App (Linux, Python 3.12) + Azure SQL with `schema.sql`. `uv export > requirements.txt` then
-`func azure functionapp publish <name>`. Torch makes the package large; for the hackathon the local
-host plus tunnel is fine.
+Use `/interact`, `demo.py --interactive`, or recorded audio for these checks:
+
+| Message | Expected intent | Saved facts |
+| --- | --- | --- |
+| Is the Alero clinic pump working? | `query` | None; initially there is no evidence |
+| The Alero clinic pump is broken. | `report` | One unverified report |
+| The Alero school borehole is working. Is the Alero clinic pump working? | `both` | One school report, then retrieval for the clinic |
+
+Inspect `interpretation.facts`, `interpretation.query`, `stored_fact_ids`, and `sources` in the response. The small fictional asset-name registry remains in the interpreter so it can match names; the selected Qdrant collection starts with no documents or status evidence.
+
+For an empty-data test, do not run `seed.py`, the default canned `demo.py`, or `RUN_QDRANT_SMOKE=1`: those intentionally populate the selected collection. Set `QDRANT_COLLECTION=water_knowledge` and restart to return to your original seeded data.
+
+`graph.py` runs `interpret → store_if_needed → retrieve_if_needed → respond`. One structured Anthropic model call extracts atomic facts and a separate question. Code resolves event/report chronology per asset and attribute, retains nearby contradictions, and removes private provenance from answer evidence. A second call phrases a grounded answer. Reports always remain unverified; a code-level safety gate refuses water-quality assurance without verified quality evidence. Qdrant preserves all history. Stable registry documents are not ranked by recency.
+
+`seed.py` upserts 21 clearly synthetic records across six assets and three fictional village labels. It is safe to rerun. The CLI and HTTP API remain available alongside the optional phone adapter.
+
+## Call WaterLine using Twilio
+
+`voice.py` adds `POST /twilio/voice` (incoming-call TwiML) and `WebSocket /twilio/ws` (ConversationRelay). It invokes the **same `handle_turn()` as `/interact`**, without a loopback HTTP request. Twilio handles transcription and speech playback; the graph, Anthropic model and Qdrant collection are shared.
+
+1. Create a [Twilio account](https://console.twilio.com/) and [get a phone number with Voice capability](https://www.twilio.com/docs/numbers-and-senders/phone-number-senders). In the Console, copy your **Account SID** and **Auth Token** to `.env`. Use the account Auth Token for webhook signature validation, not an API-key secret. Phone number availability and requirements depend on the country; review the number and call charges in Twilio before buying.
+2. Complete [ConversationRelay onboarding](https://www.twilio.com/docs/voice/conversationrelay/onboarding). In Voice settings, enable/accept the Predictive and Generative AI/ML Features Addendum. ConversationRelay must be enabled on the account that owns the number.
+3. Start the existing app:
+
+```sh
+source .venv/bin/activate
+pip install -r requirements.txt
+docker compose up -d
+python seed.py
+uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+4. Create an [ngrok account and install its CLI](https://ngrok.com/docs/share-localhost/quickstart). On macOS, run the following in another terminal, replacing the token placeholder with your ngrok dashboard token:
+
+```sh
+brew install ngrok
+ngrok config add-authtoken YOUR_NGROK_TOKEN
+ngrok http 8000
+```
+
+5. Copy ngrok's **HTTPS forwarding address** into `PUBLIC_BASE_URL` in `.env`. The following values are placeholders; keep your existing Anthropic and Qdrant settings:
+
+```env
+TWILIO_ACCOUNT_SID=ACyour_account_sid
+TWILIO_AUTH_TOKEN=your_account_auth_token
+PUBLIC_BASE_URL=https://your-domain.ngrok-free.app
+```
+
+Use only the origin for `PUBLIC_BASE_URL`: no `/twilio/voice`, credentials, query, or fragment. Restart Uvicorn after changing `.env`. Keep Uvicorn and ngrok running. An HTTPS tunnel also carries the WSS connection; no separate WebSocket tunnel or certificate is needed.
+
+6. Open your number's **Voice configuration** in Twilio. For **A call comes in**, choose **Webhook**, method **HTTP POST**, and enter:
+
+```text
+https://your-domain.ngrok-free.app/twilio/voice
+```
+
+Save, then call that Twilio number from your phone. If your Console uses TwiML Apps instead, set the app's Voice request URL to this same endpoint and assign that app to the number.
+
+7. After the greeting, say: **“The Alero clinic pump stopped working this morning. Is the Alero school borehole working?”** Then ask: **“Is the Alero clinic pump working?”** Name the asset and village in each utterance; this adapter does not add conversation memory or resolve cross-turn pronouns. The current speech pilot is English (`en-US`); no local-language or accent accuracy is claimed.
+
+Only `prompt` messages with `last: true` enter the graph. Each completed utterance gets its own stable `twilio:<callSid>:<turn_number>` ID and server receipt timestamp. The caller ID is call-scoped and HMAC-derived from the call identifier; caller phone numbers are not passed to the graph or stored in Qdrant. The greeting discloses that reports are stored and reused. User reports remain unverified.
+
+The receiver continues listening while turns run in order. Interruptions and hangups suppress unsent speech, but let already accepted final turns finish so committed facts are retained. Connection state and the turn counter exist only for the current WebSocket connection; this prototype does not reconnect or recover call state after a server restart. Twilio performs speech interruption on its side. Answers are sent only after retrieval/resolution completes, as a single final text message.
+
+Both endpoints validate Twilio signatures against your configured public URL. Missing voice configuration disables the phone adapter without disabling `/interact`. Direct unsigned `curl` requests to `/twilio/voice` return 403 by design. If calls fail, check Twilio's call debugger: 64102 usually indicates an unreachable WSS route; 64110 indicates ConversationRelay is not enabled. A 403 often means the public URL or account Auth Token differs from the one Twilio is using. Update both `.env` and the number's webhook if the tunnel address changes.
+
+The signed webhook/WebSocket tests run with `python -m pytest -q` and simulate final speech, partial speech, interruptions, hangups, and provider failures without making calls. A real phone test additionally requires your Twilio number, account configuration and live tunnel. Protocol reference: [Twilio ConversationRelay messages](https://www.twilio.com/docs/voice/conversationrelay/websocket-messages).
