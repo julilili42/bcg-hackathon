@@ -155,7 +155,7 @@ export default function Phone() {
       </section>
 
       <aside className="panel" aria-label="Live data">
-        <h2>Water points <span className="live-dot" title="live" /></h2>
+        <h2>Water points</h2>
         <div className="scroll"><table className="wp">
           <tbody>{data.waterpoints.map((w) => (
             <tr key={w.id} className={hot.has(w.id) ? "hot" : ""}>
