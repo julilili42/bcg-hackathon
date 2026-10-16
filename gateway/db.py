@@ -65,10 +65,15 @@ def set_lang(sender, lang):
         c.commit()
 
 
-def walk_minutes(a, b):
-    """Great-circle distance at 4 km/h. ponytail: straight line, roads are longer."""
+def distance_km(a, b):
+    """Great-circle distance. ponytail: straight line, roads are longer."""
     r = 6371
     p1, p2 = math.radians(a["lat"]), math.radians(b["lat"])
     dp, dl = p2 - p1, math.radians(b["lon"] - a["lon"])
     h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return round(2 * r * math.asin(math.sqrt(h)) / 4 * 60)
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def walk_minutes(a, b):
+    """At 4 km/h, rounded to 5 minutes: a straight-line estimate, a round number says so. Never 0."""
+    return max(5, 5 * round(distance_km(a, b) / 4 * 60 / 5))

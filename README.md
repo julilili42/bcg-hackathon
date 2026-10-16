@@ -1,8 +1,10 @@
 # Reach Gateway
 
-Phone-in water point status line. A caller says the name of a water point and whether it works,
-in **Swahili**, **English** or **German**. The system records it and answers right away with the nearest
-working water point. Also works over SMS.
+Phone-in water point line. A caller reports a water point ("Zahanati is broken") or asks about one
+("Is Mama Nasa working?"), in **Swahili**, **English** or **German**. Every report is stored as community
+evidence with time and provenance; every question is answered from that evidence, with dates and an
+"unverified" label, plus the nearest working water point. Also works over SMS and as a JSON API.
+One report helps the next caller.
 
 ## Quick start for the team
 
@@ -12,7 +14,8 @@ Only one machine can receive the calls at a time: whoever runs the tunnel runs t
 ```bash
 git clone <repo> && cd reach-gateway
 uv sync                                   # Python 3.12 venv + deps
-uv run scripts/download_models.py         # the two TTS models, ~300 MB, once
+uv run scripts/download_models.py         # the three TTS models, ~300 MB, once
+docker compose up -d && uv run -m gateway.knowledge   # Qdrant (evidence store) + seed it from the water point table
 (cd web && npm install && npm run build)  # the React UI (phone, dashboard, map) -> web/dist
 cp local.settings.json.example local.settings.json
 #   -> fill in TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and ANTHROPIC_API_KEY (ask Julian, never commit them)
@@ -23,26 +26,32 @@ scripts/tunnel.sh                         # second terminal: public URL + Twilio
 Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboard
 
 Tools you need once: `uv` (brew install uv), `node` (brew install node), `cloudflared` (brew install cloudflared),
-Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
+Docker (for Qdrant), Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
 No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `scripts/set_webhooks.sh`.
 
 ```
-Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-KE / en-US)
-                        /api/voice/handle ──▶ gateway/brain.py ──▶ SQL (waterpoints, events)
-                        ◀── audio reply (local MMS-TTS) or text ◀──┘
+Call/SMS ──▶ Twilio ──▶ /api/voice  (language menu, speech-to-text sw-KE / en-US / de-DE)
+                        /api/voice/handle ─┐
+POST /api/interact (JSON) ─────────────────┴─▶ gateway/graph.py  interpret ▶ store ▶ retrieve ▶ respond
+                        ◀── audio reply (local MMS-TTS) / text ◀──┘   │            │
+                                                     SQL waterpoints (map) ◀──┘            └──▶ Qdrant water_knowledge (every report, hybrid search)
 Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 ```
 
 | Path | Does |
 |---|---|
-| `function_app.py` | Azure Functions entry: Twilio webhooks + TwiML, `/api/events` JSON, serves `web/dist` |
-| `gateway/brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
+| `function_app.py` | Azure Functions entry: Twilio webhooks + TwiML, `/api/interact`, `/api/events` JSON, serves `web/dist` |
+| `gateway/graph.py` | the brain: LangGraph with four steps. interpret (Claude structured output, keywords without a key) → store (Qdrant evidence + status table) → retrieve (hybrid search + exact status history) → respond (grounded answer in the caller's language, nearest working point) |
+| `gateway/knowledge.py` | one Qdrant collection: dense (FastEmbed bge-small) + BM25 sparse vectors, RRF fusion, evidence rules (newest per asset, conflicts within a day, verified dissent). `uv run -m gateway.knowledge` seeds it |
+| `gateway/texts.py` | everything the line says, in sw/en/de, and the keyword lists of the offline fallback |
 | `gateway/tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
 | `gateway/db.py` | `events` + `waterpoints`, Azure SQL or SQLite (`db/events.db`) |
 | `gateway/phone.py` | Twilio Voice access tokens for the browser phone |
 | `db/schema.sql` | Azure SQL schema (SQLite is created on the fly with the same shape) |
-| `data/waterpoints.csv` | seed data: 15 real water points in Soga ward, Kibaha (names, coordinates, status from the Ministry of Water / Taarifa water point mapping 2011-2013) |
+| `data/waterpoints.csv` | seed data: 14 real water points in Soga ward, Kibaha (names, coordinates, status from the Ministry of Water / Taarifa water point mapping 2011-2013) |
 | `web/` | React + TypeScript (Vite): `src/Phone.tsx` (Nokia 3310 photo, real Twilio call, live database), `src/Dashboard.tsx`, `src/Map.tsx`. `npm run dev` rebuilds on save |
+| `tests/test_graph.py` | the brain with Claude and Qdrant mocked: `uv run pytest -q` (`RUN_QDRANT_SMOKE=1` adds a real Qdrant roundtrip) |
+| `docker-compose.yml` | Qdrant on 127.0.0.1:6333, data in a named volume |
 | `scripts/smoke.sh` | simulates Twilio against the local host |
 | `scripts/tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
 | `scripts/set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
@@ -55,7 +64,8 @@ Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 ```bash
 uv sync                                  # Python 3.12 venv + deps
 uv run scripts/download_models.py        # ~300 MB, once. Without it: Twilio's own voice (English only)
-uv run -m gateway.brain && uv run -m gateway.tts   # self-checks
+docker compose up -d && uv run -m gateway.knowledge  # Qdrant + seed (safe to rerun)
+uv run -m gateway.graph && uv run -m gateway.tts && uv run pytest -q   # self-checks
 (cd web && npm install && npm run build) # React UI -> web/dist (npm run dev = rebuild on save)
 cp local.settings.json.example local.settings.json   # fill in Twilio values
 func start                               # http://localhost:7071  (uses .venv)
@@ -100,7 +110,8 @@ water points with status and age, plus the last calls, refreshed every 2 s.
 |---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | from console.twilio.com |
 | `TWILIO_VALIDATE` | `1` in Azure: only signed Twilio requests. `0` locally for smoke.sh |
-| `ANTHROPIC_API_KEY` | optional; `brain.py` then uses Claude Opus 5.5 (effort low, ~2 s). Without it: keyword matching |
+| `ANTHROPIC_API_KEY` | optional; `graph.py` then uses Claude (`ANTHROPIC_MODEL`, default `claude-opus-5-5`) to interpret and to answer from evidence. Without it: keyword matching and template answers from the status table |
+| `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION` | evidence store, default `http://localhost:6333` / none / `water_knowledge`. Unreachable Qdrant: the status table still answers, reports are not kept as evidence |
 | `SQL_CONN` | optional; without it SQLite `events.db` |
 | `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `scripts/phone_setup.py` |
 
@@ -109,11 +120,15 @@ water points with status and age, plus the last calls, refreshed every 2 s.
 1. First call from a number: language menu, 1 Swahili, 2 English, 3 German. The choice is stored
    per number (`callers` table); later calls skip the menu. A digit during the question switches.
 2. One free sentence. Twilio transcribes with Google chirp_3 (`sw-KE`, `en-US`, `de-DE`).
-   `brain.understand()` asks Claude for `{point, status, lang}`; loose name matching survives
-   speech-recognition errors.
+   `graph.understand()` asks Claude for a structured interpretation (facts with water point, status and
+   observed time; a standalone question; the language); loose name matching survives speech-recognition errors.
 3. Nothing understood or nothing said: "say it again", up to three attempts in total. Low Twilio confidence (< 0.6): "Did you say X? 1 = yes".
-4. `brain.answer()` sets `ok|broken|empty` if the caller reported and answers with the nearest
-   working point and walking minutes. Then "press 1 to report another", else goodbye.
+4. `graph.handle_turn()` runs the four steps: a report sets `ok|broken|empty` in the table (the map) and
+   is stored in Qdrant as an unverified community report with time and an anonymous caller id; a question is
+   answered from the retrieved evidence (newest report, conflicts, dates, "what you just reported"), never from
+   nothing: with no evidence the table's status is read out. A down water point always comes with the nearest
+   working one, "from X: Y, about 15 minutes on foot" (straight line at 4 km/h, rounded to 5 minutes, water point to
+   water point: the caller's own position is unknown). Then "press 1 to report another", else goodbye.
 5. Replies are spoken with MMS-TTS (`facebook/mms-tts-swh`, `-eng`, `-deu`). SMS answers in the
    language the message was written in.
 

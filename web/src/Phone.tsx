@@ -1,9 +1,10 @@
 // Real Nokia 3310 photo as chassis; a real call through Twilio Voice SDK -> TwiML App -> /api/voice.
-// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Right side: the live database.
-import { useEffect, useMemo, useRef, useState } from "react";
+// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Middle: the map, right: the live water points.
+import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
 import { age, useEvents } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
+import WaterMap from "./WaterMap";
 
 type Line = string | [cls: "big" | "blink", text: string];
 type Lcd = { lines: Line[]; status: string; soft: string; on: boolean };
@@ -11,6 +12,15 @@ type Lcd = { lines: Line[]; status: string; soft: string; on: boolean };
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 const pretty = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
 const spaced = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 $1 $2 $3");
+const wrap = (text: string, width: number): Line[] => {  // three LCD lines, word-wrapped, the rest cut
+  const lines: string[] = [];
+  for (const word of text.split(/\s+/)) {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && (last + " " + word).length <= width) lines[lines.length - 1] = last + " " + word;
+    else lines.push(word.slice(0, width));
+  }
+  return lines.slice(0, 3);
+};
 
 export default function Phone() {
   const [lcd, setLcd] = useState<Lcd>({ lines: [["big", "NOKIA"], "WaterLine", "loading"], status: "", soft: "", on: false });
@@ -29,7 +39,7 @@ export default function Phone() {
 
   const show = (lines: Line[], status = "", soft = "Call") => setLcd((l) => ({ ...l, lines, status, soft }));
   const err = (who: string, text: string) => setErrors((e) => [{ who, text }, ...e]);
-  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "WaterLine", "Navi = call"]); };
+  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "WaterLine"]); };
   const elapsed = () => fmt(Math.round((Date.now() - startedAt.current) / 1000));
 
   async function dial() {
@@ -52,13 +62,13 @@ export default function Phone() {
     try { call.current?.disconnect(); } catch { /* already gone */ }
     call.current = null;
     clearInterval(tick.current);
-    idle(["Call ended", "Navi = call"]);
+    idle(["Call ended"]);
   }
 
   function key(d: string) {
     if (call.current) { call.current.sendDigits(d); show([["big", pretty(num.current)], elapsed(), `sent ${d}`], "", "End"); return; }
     dialed.current = (dialed.current + d).slice(-14);
-    show([["big", dialed.current], "only the line", "Navi = call"]);
+    show([["big", dialed.current], "only the line"]);
   }
 
   const clear = () => { if (call.current) hangup(); else { dialed.current = ""; idle(); } };
@@ -88,21 +98,41 @@ export default function Phone() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const last = useRef<Record<number, string>>({});
-  const changed = useMemo(() => {  // rows whose status changed since the last poll flash once
-    const c = new Set<number>();
-    for (const w of data.waterpoints) { if (last.current[w.id] && last.current[w.id] !== w.status) c.add(w.id); last.current[w.id] = w.status; }
-    return c;
-  }, [data]);
-  const calls = data.events.filter((e) => e.channel === "voice").slice(0, 3);
-  const HOT_S = 120;  // rows touched by a call in the last two minutes stand out, the rest dims
+  const HOT_S = 120;   // rows touched by a call in the last two minutes stand out
+  const FOCUS_S = 30;  // the map stays on the newest of them for half a minute, then glides back to the overview
   const agoS = (ts: string) => (Date.now() - new Date(String(ts).replace(" ", "T") + "Z").getTime()) / 1000;
-  const hot = new Set(data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).map((w) => w.id));
+  const hotPoints = data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).sort((a, b) => agoS(a.updated) - agoS(b.updated));
+  const hot = new Set(hotPoints.map((w) => w.id));
+  const focus = hotPoints[0] && agoS(hotPoints[0].updated) < FOCUS_S ? hotPoints[0] : null;
   const debug = location.search.includes("debug"); // ?debug=1 shows the hit areas
+
+  // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
+  const [buzz, setBuzz] = useState(false);
+  const seen = useRef<string | null>(null);  // newest event id of the last poll; null = first poll, nothing is new
+  const timers = useRef<number[]>([]);
+  useEffect(() => {
+    const ids = data.events.map((e) => e.id);
+    if (!ids.length) return;
+    if (seen.current === null) { seen.current = ids[0]; return; }
+    const fresh = data.events.slice(0, Math.max(0, ids.indexOf(seen.current))).filter((e) => e.channel === "sms");
+    seen.current = ids[0];
+    if (!fresh.length || call.current) return;  // during a call the display belongs to the call
+    setBuzz(true); setTimeout(() => setBuzz(false), 700);
+    show([["big", `${fresh.length} message${fresh.length > 1 ? "s" : ""}`], "received"], "✉", "");
+    for (const t of timers.current) clearTimeout(t);  // a second SMS restarts the sequence; the poll must not cancel it
+    timers.current = [setTimeout(() => show(wrap(fresh[0].body, 17), "✉", ""), 2200),
+                      setTimeout(() => { if (!call.current) idle(); }, 7000)];
+  }, [data.events]);
 
   return (
     <div className={`stage${debug ? " debug" : ""}`}>
-      <div className="phone">
+      <div className="left">
+      <div className="call-me"><span className="cta">text me</span><span className="num">{spaced(number)}</span>
+        <div className="eg">
+          <span className="sent">Zahanati is broken</span>
+          <span className="got">Recorded: Zahanati broken. Nearest working: Mama Nasa, ~15 min on foot.</span>
+        </div></div>
+      <div className={`phone${buzz ? " buzz" : ""}`}>
         <img src={`${import.meta.env.BASE_URL}nokia3310.png`} alt="Nokia 3310" draggable={false} />
         <div className={`lcd${lcd.on ? " on" : ""}`} style={LCD} aria-live="polite">
           <div className="lcd-top"><span className="sig">▮▮▮▮</span><span>{lcd.status}</span><span className="bat">▮▮▮</span></div>
@@ -118,34 +148,25 @@ export default function Phone() {
           <button key={d} className={`hit${pressed === d ? " pressed" : ""}`} style={style} onClick={() => key(d)}>{d}</button>
         ))}
       </div>
+      </div>
+
+      <section className="mapbox" aria-label="Map">
+        <WaterMap waterpoints={data.waterpoints} focus={focus} className="panel-map" />
+      </section>
 
       <aside className="panel" aria-label="Live data">
-        <header><div className="call-me"><span className="cta">give me a call</span><span className="num">{spaced(number)}</span></div></header>
-        <section>
-          <h2>Water points <span className="live-dot" title="live" /></h2>
-          <table className={`wp${hot.size ? " focus" : ""}`}>
-            <thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated</th></tr></thead>
-            <tbody>{data.waterpoints.map((w) => (
-              <tr key={w.id} className={`${hot.has(w.id) ? "hot" : ""}${changed.has(w.id) ? " changed" : ""}`}>
-                <td>{w.name}</td><td>{w.village}</td><td className={`status ${w.status}`}>{w.status}</td><td className="age">{age(w.updated)}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </section>
-        <details className="calls">
-          <summary><h2>Last calls <span className="hint">Navi = call · C = hang up · 1 sw · 2 en · 3 de</span></h2></summary>
-          <ol className="log">
-            {errors.map((e, i) => <li key={`e${i}`} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
-            {!calls.length && <li className="empty">No calls yet.</li>}
-            {calls.map((e) => (
-              <li key={e.id}>
-                <div className="who">{age(e.ts)} · {e.lang} · {e.sender}</div>
-                <div className="you">{e.body || "(nothing understood)"}</div>
-                <div className="line">{e.reply}</div>
-              </li>
-            ))}
-          </ol>
-        </details>
+        <h2>Water points <span className="live-dot" title="live" /></h2>
+        <div className="scroll"><table className="wp">
+          <tbody>{data.waterpoints.map((w) => (
+            <tr key={w.id} className={hot.has(w.id) ? "hot" : ""}>
+              <td><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}</div></td>
+              <td className={`status ${w.status}`}>{w.status}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+        {errors.length > 0 && <ol className="log">
+          {errors.map((e, i) => <li key={i} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
+        </ol>}
       </aside>
     </div>
   );

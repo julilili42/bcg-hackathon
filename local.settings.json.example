@@ -7,6 +7,7 @@
     "TWILIO_AUTH_TOKEN": "",
     "TWILIO_VALIDATE": "0",
     "SQL_CONN": "",
+    "QDRANT_URL": "http://localhost:6333",
     "ANTHROPIC_API_KEY": "",
     "TWILIO_API_KEY": "",
     "TWILIO_API_SECRET": "",

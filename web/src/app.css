@@ -9,9 +9,20 @@ body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-seri
 .ok { color: var(--ok); } .broken { color: var(--broken); } .empty { color: var(--empty); }
 
 /* ---------- phone (/api/phone) ---------- */
-.stage { height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); display: grid; grid-template-columns: auto minmax(360px, 560px); justify-content: center; align-items: center; gap: clamp(24px, 4vw, 64px); padding: 3vh 3vw; }
+/* three columns: phone 1/6, map 2/3, live data 1/6 */
+.stage { height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 1fr 4fr 1fr; align-items: center; gap: clamp(16px, 2vw, 40px); padding: 3vh 2vw; }
 
-.phone { position: relative; height: 82vh; aspect-ratio: 439 / 1000; container-type: inline-size; user-select: none; filter: drop-shadow(0 30px 40px rgba(0,0,0,.6)); }
+.left { display: flex; flex-direction: column; align-items: center; gap: 3vh; min-width: 0; }
+.left .call-me { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.left .cta { font-family: "Nokia Cellphone FC", monospace; font-size: 26px; color: #fff; letter-spacing: .04em; text-transform: uppercase; }
+.left .num { font-family: "Nokia Cellphone FC", monospace; font-size: 18px; color: #9fd3b0; white-space: nowrap; }
+.left .eg { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.3; }  /* an example exchange, iMessage style */
+.left .eg span { max-width: 88%; padding: 6px 11px; border-radius: 16px; }
+.left .eg .sent { align-self: flex-end; background: #1b84ff; color: #fff; border-bottom-right-radius: 4px; }
+.left .eg .got { align-self: flex-start; background: #2c2c2e; color: #e8e8ea; border-bottom-left-radius: 4px; }
+.phone.buzz { animation: buzz .7s linear; }
+@keyframes buzz { 10%, 50%, 90% { transform: translateX(-3px) rotate(-.6deg); } 30%, 70% { transform: translateX(3px) rotate(.6deg); } 100% { transform: none; } }
+.phone { position: relative; width: 100%; max-width: calc(84vh * 439 / 1000); aspect-ratio: 439 / 1000; container-type: inline-size; user-select: none; filter: drop-shadow(0 30px 40px rgba(0,0,0,.6)); }
 .phone img { display: block; width: 100%; height: 100%; }
 
 .lcd {
@@ -40,42 +51,32 @@ body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-seri
 .stage.debug .hit { background: rgba(255,0,255,.45); }  /* ?debug=1 shows the hit areas */
 .stage.debug .lcd { outline: 2px solid #f0f; }
 
-.panel { max-height: 94vh; display: grid; grid-template-rows: auto auto auto; gap: 16px; min-width: 0; }
-.panel header { display: flex; justify-content: flex-end; padding: 0 4px; }
-.panel header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: .01em; }
-.panel header .call-me { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.panel header .cta { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
-.panel header .num { font-family: "Nokia Cellphone FC", monospace; font-size: 18px; color: #9fd3b0; }
-.panel section { background: var(--panel); border-radius: 16px; padding: 16px 20px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.panel { height: 94vh; min-width: 0; background: var(--panel); border-radius: 16px; padding: 16px; overflow: hidden; display: flex; flex-direction: column; }
+.panel .scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .panel h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-.panel h2 .hint { margin-left: auto; letter-spacing: 0; text-transform: none; font-size: 12px; }
+table.wp { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.wp td { padding: 5px 6px; border-top: 1px solid #2b2f36; vertical-align: middle; }
+table.wp td .sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+table.wp td.status { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; text-align: right; white-space: nowrap; }
+table.wp td.status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: currentColor; }
+table.wp tr.hot td { background: rgba(255,255,255,.07); font-weight: 600; }
+table.wp tr.hot td:first-child { border-radius: 10px 0 0 10px; } table.wp tr.hot td:last-child { border-radius: 0 10px 10px 0; }
+table.wp tr.hot td, table.wp tr.hot + tr td { border-top-color: transparent; }
+table.wp tr.hot td.status { text-shadow: 0 0 10px currentColor; }
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 rgba(47,191,91,.6); animation: pulse 1.6s infinite; }
 @keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(47,191,91,0); } 100% { box-shadow: 0 0 0 0 rgba(47,191,91,0); } }
-.hint { margin: 0; font-size: 12px; color: var(--muted); }
-.log { flex: 1; min-height: 0; overflow: hidden; }
 
-table.wp { width: 100%; border-collapse: collapse; font-size: clamp(14px, 1.7vh, 17px); }
-table.wp th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; padding: 0 8px 8px 0; }
-table.wp td { padding: clamp(5px, .9vh, 10px) 8px clamp(5px, .9vh, 10px) 0; border-top: 1px solid #2b2f36; }
-table.wp td.status { font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .06em; }
-table.wp td.status::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: currentColor; }
-table.wp tr.changed td { animation: flash 1.2s ease-out; }
-@keyframes flash { from { background: rgba(255,255,255,.14); } to { background: transparent; } }
-td.age { color: var(--muted); font-size: 13px; white-space: nowrap; }
-
-ol.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: clamp(8px, 1.2vh, 14px); }
+ol.log { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: clamp(8px, 1.2vh, 14px); }
 .log li { border-left: 3px solid var(--ok); padding: 2px 0 2px 12px; }
 .log li .who { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
-.log li .you, .log li .line { font-size: clamp(14px, 1.7vh, 17px); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.log li .you { color: #fff; } .log li .line { color: #9fd3b0; }
-.log li:first-child { border-color: #fff; } .log li:first-child .you { font-size: clamp(16px, 2vh, 20px); }
-.log li.empty { border-color: var(--muted); color: var(--muted); }
+.log li .line { font-size: 13px; overflow-wrap: anywhere; }
 .log li.error { border-color: var(--broken); color: #f0b0ab; }
 
-@media (max-width: 860px) {
+@media (max-width: 1000px) {
   .stage { height: auto; overflow: auto; grid-template-columns: 1fr; justify-items: center; }
-  .phone { height: auto; width: min(400px, 92vw); }
-  .panel { height: auto; }
+  .phone { width: min(400px, 92vw); }
+  .mapbox { width: 100%; height: 60vh; }
+  .panel { height: auto; width: 100%; }
 }
 
 /* ---------- dashboard (/api/dashboard) ---------- */
@@ -92,20 +93,12 @@ ol.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction:
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .legend a { display: block; margin-top: 4px; }
 
-/* a call just changed a row: it glows, everything else steps back */
-table.wp.focus tr:not(.hot) td { opacity: .32; transition: opacity .6s; }
-table.wp tr.hot td { opacity: 1; background: rgba(255,255,255,.06); }
-table.wp th:first-child, table.wp td:first-child { padding-left: 10px; }
-table.wp tr.hot td:first-child { border-radius: 10px 0 0 10px; }
-table.wp tr.hot td:last-child { border-radius: 0 10px 10px 0; }
-table.wp tr.hot td, table.wp tr.hot + tr td { border-top-color: transparent; }
-table.wp tr.hot td:first-child { font-weight: 600; }
-table.wp tr.hot td.status { text-shadow: 0 0 10px currentColor; }
-/* last calls, collapsed by default */
-details.calls { background: var(--panel); border-radius: 16px; padding: 16px 20px; min-height: 0; overflow: hidden; }
-details.calls summary { list-style: none; cursor: pointer; }
-details.calls summary::-webkit-details-marker { display: none; }
-details.calls summary h2 { margin: 0; }
-details.calls summary h2::before { content: "▸"; margin-right: 6px; font-size: 11px; }
-details.calls[open] summary h2::before { content: "▾"; }
-details.calls[open] summary h2 { margin-bottom: 10px; }
+/* ---------- map in the middle column ---------- */
+.mapbox { position: relative; height: 94vh; min-width: 0; border-radius: 16px; overflow: hidden; background: #e9e5df; }
+.panel-map { height: 100%; width: 100%; }
+.leaflet-container { font: inherit; background: #e9e5df; }
+.leaflet-popup-content-wrapper { background: #1e2126; color: var(--text); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.leaflet-popup-tip { background: #1e2126; }
+.leaflet-popup-content { margin: 7px 11px; font-size: 13px; line-height: 1.35; white-space: nowrap; }
+.leaflet-popup-content small { color: var(--muted); font-size: 11px; }
+.leaflet-control-attribution { font-size: 10px; }

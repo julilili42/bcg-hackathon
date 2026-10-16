@@ -4,3 +4,5 @@ __pycache__
 web/node_modules
 web/src
 models
+tests
+docker-compose.yml

@@ -1,10 +1,11 @@
-"""Twilio webhooks -> brain -> TwiML.
-Voice: language once per caller (1 sw / 2 en / 3 de, remembered by number) -> one free sentence -> retry if nothing
+"""Twilio webhooks -> gateway/graph.py -> TwiML.
+Voice: language once per caller (1 sw / 2 en / 3 de, remembered by number) -> one free sentence -> retry if no water point
 understood, confirm if the recognition was unsure -> answer -> "press 1 for another". SMS: text in, text out.
-Also: the JSON feed and the web app (React, built into web/dist)."""
-import os, html, json, hmac, hashlib, base64, mimetypes, urllib.parse
+Also: POST /api/interact (JSON, same brain), the JSON feed and the web app (React, built into web/dist)."""
+import os, html, json, hmac, hashlib, base64, mimetypes, urllib.parse, uuid
 import azure.functions as func
-from gateway import db, brain, tts, phone
+from gateway import db, graph, tts, phone
+from gateway.texts import MENU, T
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "dist")
@@ -29,8 +30,9 @@ def say(req, text, lang):
 
 
 def gather(req, prompt, lang, attempt=1):
-    """Listen for one sentence (or a digit) after the prompt."""
-    return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechModel='{STT_MODEL}' speechTimeout='auto' "
+    """Listen for one sentence (or a digit) after the prompt. hints = the water point names, so the recognizer knows them."""
+    hints = html.escape(", ".join(w["name"] for w in db.waterpoints()))
+    return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechModel='{STT_MODEL}' speechTimeout='auto' hints='{hints}' "
             f"action='/api/voice/handle?lang={lang}&amp;n={attempt}' method='POST'>{say(req, prompt, lang)}</Gather>"
             f"<Redirect method='POST'>/api/voice/handle?lang={lang}&amp;n={attempt}</Redirect>")  # said nothing: counts as one attempt
 
@@ -41,20 +43,20 @@ def digits(req, prompt_twiml, action, timeout=4):
 
 
 def language_menu(req):
-    return digits(req, "".join(say(req, text, lang) for lang, text in brain.MENU), "/api/voice/lang") + language_menu_again()
+    return digits(req, "".join(say(req, text, lang) for lang, text in MENU), "/api/voice/lang") + language_menu_again()
 
 
 def language_menu_again():
     return "<Redirect method='POST'>/api/voice</Redirect>"
 
 
-def finish(req, u, lang, sender):
-    """Update + answer, then offer another report; hang up if no key is pressed."""
-    answer, lang = brain.answer(u, lang)
-    db.log("voice", sender, lang, u.get("text", ""), answer)
+def finish(req, text, lang, sender, turn, interpretation=None):
+    """Store + answer, then offer another report; hang up if no key is pressed."""
+    answer = graph.handle_turn(text, graph.anonymous(sender), turn, lang, interpretation=interpretation)["answer"]
+    db.log("voice", sender, lang, text, answer)
     return twiml(say(req, answer, lang)
-                 + digits(req, say(req, brain.T[lang]["another"], lang), f"/api/voice/another?lang={lang}")
-                 + say(req, brain.T[lang]["bye"], lang) + "<Hangup/>")
+                 + digits(req, say(req, T[lang]["another"], lang), f"/api/voice/another?lang={lang}")
+                 + say(req, T[lang]["bye"], lang) + "<Hangup/>")
 
 
 def signed(req):
@@ -72,7 +74,7 @@ def voice(req):
         return func.HttpResponse(status_code=403)
     lang = db.get_lang(req.form.get("From", "?"))
     if lang in STT:  # known caller: straight to the question
-        return twiml(gather(req, brain.T[lang]["greet"], lang))
+        return twiml(gather(req, T[lang]["greet"], lang))
     return twiml(language_menu(req))
 
 
@@ -84,7 +86,7 @@ def voice_lang(req):
     if not lang:
         return twiml(language_menu(req))
     db.set_lang(req.form.get("From", "?"), lang)
-    return twiml(gather(req, brain.T[lang]["greet"], lang))
+    return twiml(gather(req, T[lang]["greet"], lang))
 
 
 @app.route("voice/handle", methods=["POST"])
@@ -96,21 +98,23 @@ def voice_handle(req):
     if f.get("Digits") in DIGIT_LANG:  # a key during the question switches language, also for next time
         lang = DIGIT_LANG[f["Digits"]]
         db.set_lang(sender, lang)
-        return twiml(gather(req, brain.T[lang]["greet"], lang))
+        return twiml(gather(req, T[lang]["greet"], lang))
     text = f.get("SpeechResult", "").strip()
-    confidence = float(f.get("Confidence") or 1.0)
-    u = brain.understand(text, lang) if text else {"point": None, "status": None, "lang": lang}
-    u["text"] = text
-    if not u["point"]:
+    confidence = float(f.get("Confidence") or 0) or 1.0  # chirp_3 reports no confidence (0.0): then trust the transcript
+    print(f"voice {lang} attempt {attempt} confidence {confidence:.2f}: {text!r}")  # host log: what the recognizer heard
+    turn = f"{f.get('CallSid') or uuid.uuid4()}:{attempt}"  # stable per utterance: a confirmed retry stores nothing twice
+    i = graph.understand(text, lang) if text else None
+    point = graph.point(i) if i else None
+    if not point:
         if attempt < ATTEMPTS:
-            return twiml(gather(req, brain.T[lang]["again"], lang, attempt + 1))
-        db.log("voice", sender, lang, text, brain.T[lang]["unknown"])
-        return twiml(say(req, brain.T[lang]["unknown"], lang) + "<Hangup/>")
+            return twiml(gather(req, T[lang]["again"], lang, attempt + 1))
+        db.log("voice", sender, lang, text, T[lang]["unknown"])
+        return twiml(say(req, T[lang]["unknown"], lang) + "<Hangup/>")
     if confidence < CONFIDENT:
-        q = urllib.parse.urlencode({"lang": lang, "point": u["point"], "status": u["status"] or "", "text": text})
-        return twiml(digits(req, say(req, brain.T[lang]["confirm"].format(p=u["point"]), lang), f"/api/voice/confirm?{q}")
-                     + gather(req, brain.T[lang]["again"], lang, attempt + 1))
-    return finish(req, u, lang, sender)
+        q = urllib.parse.urlencode({"lang": lang, "point": point, "text": text, "turn": turn})
+        return twiml(digits(req, say(req, T[lang]["confirm"].format(p=point), lang), f"/api/voice/confirm?{q}")
+                     + gather(req, T[lang]["again"], lang, attempt + 1))
+    return finish(req, text, lang, sender, turn, i)
 
 
 @app.route("voice/confirm", methods=["POST"])
@@ -118,10 +122,9 @@ def voice_confirm(req):
     if not signed(req):
         return func.HttpResponse(status_code=403)
     lang = req.params.get("lang", "sw")
-    if req.form.get("Digits") == "1":
-        u = {"point": req.params.get("point"), "status": req.params.get("status") or None, "lang": lang, "text": req.params.get("text", "")}
-        return finish(req, u, lang, req.form.get("From", "?"))
-    return twiml(gather(req, brain.T[lang]["greet"], lang))
+    if req.form.get("Digits") == "1":  # interpreted again (cheap), stored once (same turn id)
+        return finish(req, req.params.get("text", ""), lang, req.form.get("From", "?"), req.params.get("turn", "confirm"))
+    return twiml(gather(req, T[lang]["greet"], lang))
 
 
 @app.route("voice/another", methods=["POST"])
@@ -130,8 +133,8 @@ def voice_another(req):
         return func.HttpResponse(status_code=403)
     lang = req.params.get("lang", "sw")
     if req.form.get("Digits") == "1":
-        return twiml(gather(req, brain.T[lang]["greet"], lang))
-    return twiml(say(req, brain.T[lang]["bye"], lang) + "<Hangup/>")
+        return twiml(gather(req, T[lang]["greet"], lang))
+    return twiml(say(req, T[lang]["bye"], lang) + "<Hangup/>")
 
 
 @app.route("sms", methods=["POST"])
@@ -139,10 +142,25 @@ def sms(req):
     if not signed(req):
         return func.HttpResponse(status_code=403)
     f = req.form
-    text = f.get("Body", "")
-    answer, lang = brain.reply(text)
-    db.log("sms", f.get("From", "?"), lang, text, answer)
-    return twiml(f"<Message>{html.escape(answer)}</Message>")
+    text, sender = f.get("Body", ""), f.get("From", "?")
+    r = graph.handle_turn(text, graph.anonymous(sender), f.get("MessageSid") or str(uuid.uuid4()))
+    db.log("sms", sender, r["lang"], text, r["answer"])
+    return twiml(f"<Message>{html.escape(r['answer'])}</Message>")
+
+
+@app.route("interact", methods=["POST"])
+def interact(req):
+    """Text in, JSON out: {"message": "...", "user_id"?: "...", "turn_id"?: "...", "lang"?: "sw|en|de"}. Same brain as the phone."""
+    try:
+        body = req.get_json()
+        message = str(body["message"])[:5000]
+    except (ValueError, KeyError, TypeError):
+        return func.HttpResponse('{"error": "JSON body with a message field required"}', status_code=400, mimetype="application/json")
+    user, turn = str(body.get("user_id") or "api")[:100], str(body.get("turn_id") or uuid.uuid4())[:100]
+    lang = body.get("lang") if body.get("lang") in T else None
+    r = graph.handle_turn(message, user, turn, lang)
+    db.log("api", user, r["lang"], message, r["answer"])
+    return func.HttpResponse(json.dumps(r, default=str), mimetype="application/json")
 
 
 @app.route("audio/{name}", methods=["GET"])
