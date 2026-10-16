@@ -111,7 +111,7 @@ water points with status and age, plus the last calls, refreshed every 2 s.
 2. One free sentence. Twilio transcribes with Google chirp_3 (`sw-KE`, `en-US`, `de-DE`).
    `brain.understand()` asks Claude for `{point, status, lang}`; loose name matching survives
    speech-recognition errors.
-3. Nothing understood: "say it again", once. Low Twilio confidence (< 0.6): "Did you say X? 1 = yes".
+3. Nothing understood or nothing said: "say it again", up to three attempts in total. Low Twilio confidence (< 0.6): "Did you say X? 1 = yes".
 4. `brain.answer()` sets `ok|broken|empty` if the caller reported and answers with the nearest
    working point and walking minutes. Then "press 1 to report another", else goodbye.
 5. Replies are spoken with MMS-TTS (`facebook/mms-tts-swh`, `-eng`, `-deu`). SMS answers in the

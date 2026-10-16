@@ -8,6 +8,8 @@ curl -sf -X POST "$B/voice/lang" -d From=$F -d Digits=2 | grep -q "en-US"       
 curl -sf -X POST "$B/voice" -d From=$F | grep -q "en-US"                                             # remembered: no menu
 curl -sf -X POST "$B/voice/lang" -d From=$F -d Digits=3 | grep -q "de-DE"                           # 3 = German
 curl -sf -X POST "$B/voice/handle?lang=en&n=1" -d From=$F -d SpeechResult="blah" | grep -q "n=2"    # nothing understood: retry
+curl -sf -X POST "$B/voice/handle?lang=en&n=2" -d From=$F -d SpeechResult="" | grep -q "n=3"        # said nothing: retry again
+curl -sf -X POST "$B/voice/handle?lang=en&n=3" -d From=$F -d SpeechResult="blah" | grep -q "<Hangup"  # third miss: give up
 curl -sf -X POST "$B/voice/handle?lang=en&n=1" -d From=$F -d SpeechResult="The Zahanati well is broken" -d Confidence=0.3 | grep -q "voice/confirm"
 curl -sf -X POST "$B/voice/confirm?lang=en&point=Zahanati&status=broken" -d From=$F -d Digits=1 | grep -q "voice/another"
 curl -sf -X POST "$B/voice/handle?lang=en&n=1" -d From=$F -d SpeechResult="The Zahanati well is broken" -d Confidence=0.9 | grep -qE "<Play>|<Say"

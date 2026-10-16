@@ -12,6 +12,7 @@ STT = {"sw": "sw-KE", "en": "en-US", "de": "de-DE"}  # Google chirp_3 has sw-KE,
 STT_MODEL = "googlev2_chirp_3"  # the only Twilio speech model with Swahili
 DIGIT_LANG = {"1": "sw", "2": "en", "3": "de"}
 CONFIDENT = 0.6  # below this Twilio confidence we ask "did you say X?"
+ATTEMPTS = 3     # how often we listen before giving up on a call
 
 
 def twiml(inner):
@@ -31,7 +32,7 @@ def gather(req, prompt, lang, attempt=1):
     """Listen for one sentence (or a digit) after the prompt."""
     return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechModel='{STT_MODEL}' speechTimeout='auto' "
             f"action='/api/voice/handle?lang={lang}&amp;n={attempt}' method='POST'>{say(req, prompt, lang)}</Gather>"
-            + say(req, brain.T[lang]["unknown"], lang) + "<Hangup/>")  # reached only if the caller says nothing
+            f"<Redirect method='POST'>/api/voice/handle?lang={lang}&amp;n={attempt}</Redirect>")  # said nothing: counts as one attempt
 
 
 def digits(req, prompt_twiml, action, timeout=4):
@@ -101,14 +102,14 @@ def voice_handle(req):
     u = brain.understand(text, lang) if text else {"point": None, "status": None, "lang": lang}
     u["text"] = text
     if not u["point"]:
-        if attempt < 2:
+        if attempt < ATTEMPTS:
             return twiml(gather(req, brain.T[lang]["again"], lang, attempt + 1))
         db.log("voice", sender, lang, text, brain.T[lang]["unknown"])
         return twiml(say(req, brain.T[lang]["unknown"], lang) + "<Hangup/>")
     if confidence < CONFIDENT:
         q = urllib.parse.urlencode({"lang": lang, "point": u["point"], "status": u["status"] or "", "text": text})
         return twiml(digits(req, say(req, brain.T[lang]["confirm"].format(p=u["point"]), lang), f"/api/voice/confirm?{q}")
-                     + gather(req, brain.T[lang]["again"], lang, 2))
+                     + gather(req, brain.T[lang]["again"], lang, attempt + 1))
     return finish(req, u, lang, sender)
 
 
