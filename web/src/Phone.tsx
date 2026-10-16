@@ -120,7 +120,7 @@ export default function Phone() {
       </div>
 
       <aside className="panel" aria-label="Live data">
-        <header><h1>WaterLine</h1><div className="call-me"><span className="cta">give me a call</span><span className="num">{spaced(number)}</span></div></header>
+        <header><div className="call-me"><span className="cta">give me a call</span><span className="num">{spaced(number)}</span></div></header>
         <section>
           <h2>Water points <span className="live-dot" title="live" /><span className="hint">live, every 2 s</span></h2>
           <table className={`wp${hot.size ? " focus" : ""}`}>
