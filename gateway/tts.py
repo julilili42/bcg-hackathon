@@ -1,7 +1,7 @@
 """Text -> wav via Meta MMS-TTS (runs on CPU, ~1 s per sentence). Models come from scripts/download_models.py.
 Returns None when models are missing, the caller then falls back to Twilio <Say>."""
 import os, hashlib, functools
-MODELS = {"sw": "facebook/mms-tts-swh", "en": "facebook/mms-tts-eng", "de": "facebook/mms-tts-deu"}
+MODELS = {"sw": "facebook/mms-tts-swh", "en": "facebook/mms-tts-eng", "de": "facebook/mms-tts-deu", "fr": "facebook/mms-tts-fra"}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIO = os.path.join(ROOT, "audio")
 

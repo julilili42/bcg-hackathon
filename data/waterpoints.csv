@@ -1,15 +1,14 @@
 name,village,lat,lon,status
-Zahanati,Kigero,-6.7788,38.8615,ok
-Msikitini,Vikuge,-6.7824,38.8584,ok
-Binti Kipara,Vikuge,-6.7827,38.8586,ok
-Mama Nasa,Vikuge,-6.7749,38.8637,ok
-Minja,Kigero,-6.7754,38.8659,ok
-Rabo,Kati,-6.7677,38.8665,ok
-Peter Lucas,Kigero,-6.7591,38.8673,ok
-Maua Juma,Vikuge,-6.7871,38.8545,ok
-Kwa Ndende,Kigero,-6.7682,38.8649,broken
-Msenda,Vikuge,-6.7813,38.8554,broken
-Mazengara,Kigero,-6.7777,38.8621,broken
-Kwa Simon,Vikuge,-6.7852,38.8593,broken
-Said Mintanga,Ngoingo,-6.7836,38.8489,broken
-Vikuge Farm,Kigero,-6.7859,38.8630,empty
+Kibogoye spring,Muyinga,-2.85198,30.34782,broken
+Burima spring,Burima,-2.81692,30.32478,ok
+Gitongwe spring,Gitongwe,-2.81217,30.33295,ok
+Cibari spring,Cibari,-2.83026,30.36732,broken
+Karemera spring,Cibari,-2.83258,30.36859,ok
+Gatovu spring,Gatovu,-2.80798,30.39534,ok
+Nyamarumba spring,Nyamarumba,-2.84915,30.38109,broken
+Kwibuye spring,Rusengo,-2.87629,30.32788,ok
+Rusengo spring,Rusengo,-2.88360,30.32642,ok
+Mukoni spring,Mukoni,-2.87704,30.30230,ok
+Kiyenzi spring,Kayenzi,-2.88887,30.35731,ok
+Kayenzi spring,Kayenzi,-2.89684,30.37287,ok
+Kayenzi meeting-hall spring,Kayenzi,-2.88673,30.35484,ok

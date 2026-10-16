@@ -1,5 +1,5 @@
 """Twilio webhooks -> gateway/graph.py -> TwiML.
-Voice: language once per caller (1 sw / 2 en / 3 de, remembered by number) -> one free sentence -> retry if no water point
+Voice: language once per caller (1 sw / 2 en / 3 de / 4 fr, remembered by number) -> one free sentence -> retry if no water point
 understood, confirm if the recognition was unsure -> answer -> "press 1 for another". SMS: text in, text out.
 Also: POST /api/interact (JSON, same brain), the JSON feed and the web app (React, built into web/dist)."""
 import os, html, json, hmac, hashlib, base64, mimetypes, urllib.parse, uuid
@@ -9,9 +9,9 @@ from gateway.texts import MENU, T
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "dist")
-STT = {"sw": "sw-KE", "en": "en-US", "de": "de-DE"}  # Google chirp_3 has sw-KE, no sw-TZ; same language on the phone
+STT = {"sw": "sw-KE", "en": "en-US", "de": "de-DE", "fr": "fr-FR"}  # Google chirp_3 has sw-KE, no sw-TZ; same language on the phone
 STT_MODEL = "googlev2_chirp_3"  # the only Twilio speech model with Swahili
-DIGIT_LANG = {"1": "sw", "2": "en", "3": "de"}
+DIGIT_LANG = {"1": "sw", "2": "en", "3": "de", "4": "fr"}
 CONFIDENT = 0.6  # below this Twilio confidence we ask "did you say X?"
 ATTEMPTS = 3     # how often we listen before giving up on a call
 
@@ -30,8 +30,8 @@ def say(req, text, lang):
 
 
 def gather(req, prompt, lang, attempt=1):
-    """Listen for one sentence (or a digit) after the prompt. hints = the water point names, so the recognizer knows them."""
-    hints = html.escape(", ".join(w["name"] for w in db.waterpoints()))
+    """Listen for one sentence (or a digit) after the prompt. hints = water point and village names, so the recognizer knows them."""
+    hints = html.escape(", ".join([w["name"] for w in db.waterpoints()] + [v["name"] for v in db.villages()]))
     return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechModel='{STT_MODEL}' speechTimeout='auto' hints='{hints}' "
             f"action='/api/voice/handle?lang={lang}&amp;n={attempt}' method='POST'>{say(req, prompt, lang)}</Gather>"
             f"<Redirect method='POST'>/api/voice/handle?lang={lang}&amp;n={attempt}</Redirect>")  # said nothing: counts as one attempt
@@ -52,11 +52,17 @@ def language_menu_again():
 
 def finish(req, text, lang, sender, turn, interpretation=None):
     """Store + answer, then offer another report; hang up if no key is pressed."""
-    answer = graph.handle_turn(text, graph.anonymous(sender), turn, lang, interpretation=interpretation)["answer"]
-    db.log("voice", sender, lang, text, answer)
+    r = graph.handle_turn(text, graph.anonymous(sender), turn, lang, interpretation=interpretation)
+    record("voice", sender, lang, text, r)
+    answer = r["answer"]
     return twiml(say(req, answer, lang)
                  + digits(req, say(req, T[lang]["another"], lang), f"/api/voice/another?lang={lang}")
                  + say(req, T[lang]["bye"], lang) + "<Hangup/>")
+
+
+def record(channel, sender, lang, text, r):
+    """Log the turn with its place, so the map can follow it. A hazard report never shows the caller's number."""
+    db.log(channel, graph.anonymous(sender) if r["hazard"] else sender, lang, text, r["answer"], r["village"], r["point"])
 
 
 def signed(req):
@@ -144,13 +150,13 @@ def sms(req):
     f = req.form
     text, sender = f.get("Body", ""), f.get("From", "?")
     r = graph.handle_turn(text, graph.anonymous(sender), f.get("MessageSid") or str(uuid.uuid4()), channel="sms")
-    db.log("sms", sender, r["lang"], text, r["answer"])
+    record("sms", sender, r["lang"], text, r)
     return twiml(f"<Message>{html.escape(r['answer'])}</Message>")
 
 
 @app.route("interact", methods=["POST"])
 def interact(req):
-    """Text in, JSON out: {"message": "...", "user_id"?: "...", "turn_id"?: "...", "lang"?: "sw|en|de"}. Same brain as the phone."""
+    """Text in, JSON out: {"message": "...", "user_id"?: "...", "turn_id"?: "...", "lang"?: "sw|en|de|fr"}. Same brain as the phone."""
     try:
         body = req.get_json()
         message = str(body["message"])[:5000]
@@ -159,7 +165,7 @@ def interact(req):
     user, turn = str(body.get("user_id") or "api")[:100], str(body.get("turn_id") or uuid.uuid4())[:100]
     lang = body.get("lang") if body.get("lang") in T else None
     r = graph.handle_turn(message, user, turn, lang, channel="api")
-    db.log("api", user, r["lang"], message, r["answer"])
+    record("api", user, r["lang"], message, r)
     return func.HttpResponse(json.dumps(r, default=str), mimetype="application/json")
 
 
@@ -171,7 +177,8 @@ def audio(req):
 
 @app.route("events", methods=["GET"])
 def events(req):
-    return func.HttpResponse(json.dumps({"events": db.events(), "waterpoints": db.waterpoints()}), mimetype="application/json")
+    return func.HttpResponse(json.dumps({"events": db.events(), "waterpoints": db.waterpoints(), "villages": db.villages(),
+                                         "hazards": db.hazards()}), mimetype="application/json")
 
 
 @app.route("phone/token", methods=["GET"])
