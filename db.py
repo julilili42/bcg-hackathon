@@ -1,34 +1,60 @@
-"""Eine Tabelle, zwei Backends. SQL_CONN gesetzt -> Azure SQL, sonst SQLite-Datei.
-ponytail: SQLite nur damit `func start` ohne Azure läuft; am Hackathon SQL_CONN setzen."""
-import os, sqlite3, json
+"""Two tables, two backends. SQL_CONN set -> Azure SQL (pyodbc), else SQLite file.
+ponytail: SQLite exists so `func start` works without Azure; set SQL_CONN at the hackathon."""
+import os, sqlite3, csv, math
 
 CONN = os.environ.get("SQL_CONN", "")
-SQLITE = os.path.join(os.path.dirname(__file__), "events.db")
+HERE = os.path.dirname(__file__)
 
 
 def _connect():
     if CONN:
         import pyodbc
         return pyodbc.connect(CONN)
-    c = sqlite3.connect(SQLITE)
-    c.execute("""CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT DEFAULT CURRENT_TIMESTAMP,
-        channel TEXT, sender TEXT, body TEXT, kind TEXT, data TEXT)""")
+    c = sqlite3.connect(os.path.join(HERE, "events.db"))
+    c.execute("""CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS waterpoints (id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT, village TEXT, lat REAL, lon REAL, status TEXT DEFAULT 'ok', updated TEXT DEFAULT CURRENT_TIMESTAMP)""")
+    if not c.execute("SELECT 1 FROM waterpoints LIMIT 1").fetchone():
+        with open(os.path.join(HERE, "waterpoints.csv")) as f:
+            c.executemany("INSERT INTO waterpoints(name,village,lat,lon,status) VALUES (?,?,?,?,?)",
+                          [(r["name"], r["village"], float(r["lat"]), float(r["lon"]), r["status"]) for r in csv.DictReader(f)])
     return c
 
 
-def store(channel, sender, body, kind=None, data=None):
+def _top(n):  # SQL dialect difference in one place
+    return (f"SELECT TOP ({n})", "") if CONN else ("SELECT", f" LIMIT {n}")
+
+
+def log(channel, sender, lang, body, reply):
     with _connect() as c:
-        c.execute("INSERT INTO events(channel,sender,body,kind,data) VALUES (?,?,?,?,?)",
-                  (channel, sender, body, kind, json.dumps(data) if data else None))
+        c.execute("INSERT INTO events(channel,sender,lang,body,reply) VALUES (?,?,?,?,?)", (channel, sender, lang, body, reply))
         c.commit()
 
 
-def recent(limit=100):
+def events(n=100):
+    sel, lim = _top(n)
     with _connect() as c:
-        rows = c.execute("SELECT id,ts,channel,sender,body,kind,data FROM events ORDER BY id DESC LIMIT ?"
-                         if not CONN else
-                         "SELECT TOP (?) id,ts,channel,sender,body,kind,data FROM events ORDER BY id DESC",
-                         (limit,)).fetchall()
-    return [dict(zip(["id", "ts", "channel", "sender", "body", "kind", "data"], map(str, r))) for r in rows]
+        rows = c.execute(f"{sel} id,ts,channel,sender,lang,body,reply FROM events ORDER BY id DESC{lim}").fetchall()
+    return [dict(zip(["id", "ts", "channel", "sender", "lang", "body", "reply"], map(str, r))) for r in rows]
+
+
+def waterpoints():
+    with _connect() as c:
+        rows = c.execute("SELECT id,name,village,lat,lon,status,updated FROM waterpoints").fetchall()
+    return [dict(zip(["id", "name", "village", "lat", "lon", "status", "updated"], r)) for r in rows]
+
+
+def set_status(wp_id, status):
+    with _connect() as c:
+        c.execute("UPDATE waterpoints SET status=?, updated=CURRENT_TIMESTAMP WHERE id=?", (status, wp_id))
+        c.commit()
+
+
+def walk_minutes(a, b):
+    """Great-circle distance at 4 km/h. ponytail: straight line, roads are longer."""
+    r = 6371
+    p1, p2 = math.radians(a["lat"]), math.radians(b["lat"])
+    dp, dl = p2 - p1, math.radians(b["lon"] - a["lon"])
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return round(2 * r * math.asin(math.sqrt(h)) / 4 * 60)

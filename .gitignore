@@ -2,4 +2,6 @@
 __pycache__/
 local.settings.json
 events.db
+audio/
+models/
 .python_packages/

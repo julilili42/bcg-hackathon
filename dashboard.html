@@ -1,22 +1,25 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Reach Gateway</title>
 <style>
   body{font:14px/1.4 system-ui,sans-serif;margin:16px;background:#fff;color:#111}
-  table{border-collapse:collapse;width:100%}
-  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd;vertical-align:top}
-  th{background:#f3f3f3}
-  .sms{color:#0a7}.voice{color:#07a}
+  h2{margin:16px 0 8px} table{border-collapse:collapse;width:100%;margin-bottom:24px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd;vertical-align:top} th{background:#f3f3f3}
+  .ok{color:#0a7;font-weight:600}.broken{color:#c22;font-weight:600}.empty{color:#c80;font-weight:600}
 </style></head><body>
-<h2>Eingehende Nachrichten <small id="n"></small></h2>
-<table><thead><tr><th>#</th><th>Zeit (UTC)</th><th>Kanal</th><th>Von</th><th>Text</th><th>Typ</th></tr></thead>
-<tbody id="rows"></tbody></table>
+<h2>Water points</h2>
+<table><thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated (UTC)</th></tr></thead><tbody id="wp"></tbody></table>
+<h2>Calls and messages <small id="n"></small></h2>
+<table><thead><tr><th>Time (UTC)</th><th>Channel</th><th>From</th><th>Lang</th><th>Said</th><th>Answered</th></tr></thead><tbody id="ev"></tbody></table>
 <script>
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 async function load(){
-  const r=await fetch('/api/events'); const ev=await r.json();
-  document.getElementById('n').textContent=`(${ev.length})`;
-  document.getElementById('rows').innerHTML=ev.map(e=>
-    `<tr><td>${e.id}</td><td>${e.ts}</td><td class="${e.channel}">${e.channel}</td><td>${e.sender}</td><td>${e.body}</td><td>${e.kind==='None'?'':e.kind}</td></tr>`).join('');
+  const d=await (await fetch('/api/events')).json();
+  document.getElementById('wp').innerHTML=d.waterpoints.map(w=>
+    `<tr><td>${esc(w.name)}</td><td>${esc(w.village)}</td><td class="${w.status}">${w.status}</td><td>${esc(w.updated)}</td></tr>`).join('');
+  document.getElementById('n').textContent=`(${d.events.length})`;
+  document.getElementById('ev').innerHTML=d.events.map(e=>
+    `<tr><td>${esc(e.ts)}</td><td>${e.channel}</td><td>${esc(e.sender)}</td><td>${e.lang}</td><td>${esc(e.body)}</td><td>${esc(e.reply)}</td></tr>`).join('');
 }
 load(); setInterval(load,5000);
 </script></body></html>

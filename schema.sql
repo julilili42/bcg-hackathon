@@ -1,10 +1,18 @@
--- Azure SQL. Eine Tabelle, bewusst dumm. Spalten kind/data werden befüllt, sobald die Idee steht.
+-- Azure SQL. Local dev uses SQLite with the same shape (see db.py).
 CREATE TABLE events (
   id      INT IDENTITY PRIMARY KEY,
   ts      DATETIME2 DEFAULT SYSUTCDATETIME(),
   channel VARCHAR(8),        -- 'sms' | 'voice'
   sender  VARCHAR(20),
-  body    NVARCHAR(500),     -- Rohtext bzw. Tastendruck
-  kind    VARCHAR(20) NULL,
-  data    NVARCHAR(MAX) NULL -- JSON
+  lang    VARCHAR(2),        -- 'sw' | 'en'
+  body    NVARCHAR(500),     -- what the caller said / wrote
+  reply   NVARCHAR(500)      -- what we answered
+);
+CREATE TABLE waterpoints (
+  id      INT IDENTITY PRIMARY KEY,
+  name    NVARCHAR(80),
+  village NVARCHAR(80),
+  lat     FLOAT, lon FLOAT,
+  status  VARCHAR(8) DEFAULT 'ok',   -- 'ok' | 'broken' | 'empty'
+  updated DATETIME2 DEFAULT SYSUTCDATETIME()
 );

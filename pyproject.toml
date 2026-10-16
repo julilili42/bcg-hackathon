@@ -1,0 +1,13 @@
+[project]
+name = "reach-gateway"
+version = "0.1.0"
+description = "Phone-in water point status line: Twilio voice/SMS -> Azure Function -> SQL. Swahili + English."
+requires-python = "==3.12.*"
+dependencies = [
+    "azure-functions",
+    "pyodbc",
+    "torch",
+    "transformers",
+    "soundfile",
+    "huggingface-hub",
+]
