@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+local.settings.json
+events.db
+.python_packages/

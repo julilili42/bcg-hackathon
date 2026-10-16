@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reach Gateway</title>
+<style>
+  body{font:14px/1.4 system-ui,sans-serif;margin:16px;background:#fff;color:#111}
+  table{border-collapse:collapse;width:100%}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd;vertical-align:top}
+  th{background:#f3f3f3}
+  .sms{color:#0a7}.voice{color:#07a}
+</style></head><body>
+<h2>Eingehende Nachrichten <small id="n"></small></h2>
+<table><thead><tr><th>#</th><th>Zeit (UTC)</th><th>Kanal</th><th>Von</th><th>Text</th><th>Typ</th></tr></thead>
+<tbody id="rows"></tbody></table>
+<script>
+async function load(){
+  const r=await fetch('/api/events'); const ev=await r.json();
+  document.getElementById('n').textContent=`(${ev.length})`;
+  document.getElementById('rows').innerHTML=ev.map(e=>
+    `<tr><td>${e.id}</td><td>${e.ts}</td><td class="${e.channel}">${e.channel}</td><td>${e.sender}</td><td>${e.body}</td><td>${e.kind==='None'?'':e.kind}</td></tr>`).join('');
+}
+load(); setInterval(load,5000);
+</script></body></html>
