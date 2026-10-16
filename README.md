@@ -4,24 +4,6 @@ Phone-in water point status line. A caller says the name of a water point and wh
 in **Swahili** or **English**. The system records it and answers right away with the nearest
 working water point. Also works over SMS.
 
-```
-Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-TZ / en-US)
-                        /api/voice/handle ──▶ brain.py ──▶ SQL (waterpoints, events)
-                        ◀── audio reply (local MMS-TTS) or text ◀──┘
-Dashboard: /api/dashboard
-```
-
-| File | Does |
-|---|---|
-| `function_app.py` | Twilio webhooks, TwiML, routes |
-| `brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
-| `tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
-| `db.py` | `events` + `waterpoints`, Azure SQL or SQLite |
-| `download_models.py` | fetches the two TTS models into `models/` |
-| `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
-| `smoke.sh` | simulates Twilio against the local host |
-| `set_webhooks.sh` | points the Twilio number at your tunnel or Azure URL |
-
 ## Quick start for the team
 
 Everything runs on one Twilio account and one phone number (**+1 865 459 8142**).
@@ -43,6 +25,24 @@ Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboar
 Tools you need once: `uv` (brew install uv), `cloudflared` (brew install cloudflared),
 Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
 No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `set_webhooks.sh`.
+
+```
+Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-TZ / en-US)
+                        /api/voice/handle ──▶ brain.py ──▶ SQL (waterpoints, events)
+                        ◀── audio reply (local MMS-TTS) or text ◀──┘
+Dashboard: /api/dashboard
+```
+
+| File | Does |
+|---|---|
+| `function_app.py` | Twilio webhooks, TwiML, routes |
+| `brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
+| `tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
+| `db.py` | `events` + `waterpoints`, Azure SQL or SQLite |
+| `download_models.py` | fetches the two TTS models into `models/` |
+| `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
+| `smoke.sh` | simulates Twilio against the local host |
+| `set_webhooks.sh` | points the Twilio number at your tunnel or Azure URL |
 
 ## Run locally
 
