@@ -2,7 +2,7 @@
 // Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Middle: the map, right: the live water points.
 import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
-import { age, useEvents } from "./api";
+import { age, useEvents, type LogEvent } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
 import WaterMap from "./WaterMap";
 
@@ -108,6 +108,7 @@ export default function Phone() {
 
   // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
   const [buzz, setBuzz] = useState(false);
+  const [last, setLast] = useState<LogEvent | null>(null);
   const seen = useRef<string | null>(null);  // newest event id of the last poll; null = first poll, nothing is new
   const timers = useRef<number[]>([]);
   useEffect(() => {
@@ -116,7 +117,9 @@ export default function Phone() {
     if (seen.current === null) { seen.current = ids[0]; return; }
     const fresh = data.events.slice(0, Math.max(0, ids.indexOf(seen.current))).filter((e) => e.channel === "sms");
     seen.current = ids[0];
-    if (!fresh.length || call.current) return;  // during a call the display belongs to the call
+    if (!fresh.length) return;
+    setLast(fresh[0]);  // the example under TEXT ME becomes the real exchange
+    if (call.current) return;  // during a call the display belongs to the call
     setBuzz(true); setTimeout(() => setBuzz(false), 700);
     show([["big", `${fresh.length} message${fresh.length > 1 ? "s" : ""}`], "received"], "✉", "");
     for (const t of timers.current) clearTimeout(t);  // a second SMS restarts the sequence; the poll must not cancel it
@@ -129,8 +132,8 @@ export default function Phone() {
       <div className="left">
       <div className="call-me"><span className="cta">text me</span><span className="num">{spaced(number)}</span>
         <div className="eg">
-          <span className="sent">Zahanati is broken</span>
-          <span className="got">Recorded: Zahanati broken. Nearest working: Mama Nasa, ~15 min on foot.</span>
+          <span className="sent">{last ? last.body : "Zahanati is broken"}</span>
+          <span className="got">{last ? last.reply : "Recorded: Zahanati broken. Nearest working: Mama Nasa, ~15 min on foot."}</span>
         </div></div>
       <div className={`phone${buzz ? " buzz" : ""}`}>
         <img src={`${import.meta.env.BASE_URL}nokia3310.png`} alt="Nokia 3310" draggable={false} />

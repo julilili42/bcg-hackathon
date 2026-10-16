@@ -143,7 +143,7 @@ def sms(req):
         return func.HttpResponse(status_code=403)
     f = req.form
     text, sender = f.get("Body", ""), f.get("From", "?")
-    r = graph.handle_turn(text, graph.anonymous(sender), f.get("MessageSid") or str(uuid.uuid4()))
+    r = graph.handle_turn(text, graph.anonymous(sender), f.get("MessageSid") or str(uuid.uuid4()), channel="sms")
     db.log("sms", sender, r["lang"], text, r["answer"])
     return twiml(f"<Message>{html.escape(r['answer'])}</Message>")
 
@@ -158,7 +158,7 @@ def interact(req):
         return func.HttpResponse('{"error": "JSON body with a message field required"}', status_code=400, mimetype="application/json")
     user, turn = str(body.get("user_id") or "api")[:100], str(body.get("turn_id") or uuid.uuid4())[:100]
     lang = body.get("lang") if body.get("lang") in T else None
-    r = graph.handle_turn(message, user, turn, lang)
+    r = graph.handle_turn(message, user, turn, lang, channel="api")
     db.log("api", user, r["lang"], message, r["answer"])
     return func.HttpResponse(json.dumps(r, default=str), mimetype="application/json")
 
