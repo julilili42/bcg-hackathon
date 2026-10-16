@@ -9,7 +9,7 @@ from fastembed import TextEmbedding
 from qdrant_client import QdrantClient, models
 from . import db
 
-COLLECTION = os.environ.get("QDRANT_COLLECTION", "").strip() or "water_knowledge"
+COLLECTION = os.environ.get("QDRANT_COLLECTION", "").strip() or "muyinga_knowledge"  # a new name with the move from Kibaha: no old Tanzanian evidence in answers
 DENSE_MODEL = "BAAI/bge-small-en-v1.5"
 BM25_MODEL = "Qdrant/bm25"
 
@@ -132,8 +132,8 @@ def seed():
     for w in db.waterpoints():
         common = dict(asset_id=w["name"], village=w["village"], asset_name=w["name"], record_type="document_chunk",
                       user_id=None, source_type="registry", verification_status="unverified", chunk_index=0)
-        ids.append(ingest({**common, "source_id": f"registry-{w['name']}", "document_date": "2013-01-01T00:00:00Z",
-            "text": f"{w['name']} is a water point in {w['village']}, Soga ward, Kibaha (Ministry of Water mapping 2011-2013). "
+        ids.append(ingest({**common, "source_id": f"registry-{w['name']}", "document_date": "2026-10-16T00:00:00Z",
+            "text": f"{w['name']} is a protected spring serving {w['village']}, Muyinga, Burundi (OpenStreetMap, built by the Burundi Red Cross). "
                     "No water-quality evidence is available."}))
         when = str(w["updated"]).replace(" ", "T") + "Z"
         ids.append(ingest({**common, "source_id": f"status-{w['name']}", "attribute": "operational_status",

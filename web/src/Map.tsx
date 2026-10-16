@@ -1,7 +1,8 @@
-import { useEvents } from "./api";
+import { useEvents, useFocus } from "./api";
 import WaterMap from "./WaterMap";
 
 export default function MapPage() {
-  const { waterpoints } = useEvents(5000);
-  return <WaterMap waterpoints={waterpoints} legend />;
+  const data = useEvents(2000);
+  const focus = useFocus(data);
+  return <WaterMap waterpoints={data.waterpoints} villages={data.villages} hazards={data.hazards} focus={focus} legend />;
 }

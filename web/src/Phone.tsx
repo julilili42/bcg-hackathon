@@ -1,8 +1,8 @@
 // Real Nokia 3310 photo as chassis; a real call through Twilio Voice SDK -> TwiML App -> /api/voice.
-// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Middle: the map, right: the live water points.
+// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de, 4 fr). Middle: the map, right: the live water points.
 import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
-import { age, useEvents, type LogEvent } from "./api";
+import { HAZARD_LABEL, age, useEvents, useFocus, type LogEvent } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
 import WaterMap from "./WaterMap";
 
@@ -53,7 +53,7 @@ export default function Phone() {
     setInCall(true);
     call.current.on("accept", () => {
       startedAt.current = Date.now();
-      tick.current = window.setInterval(() => show([["big", pretty(num.current)], elapsed(), "speak / 1 sw 2 en 3 de"], "", "End"), 1000);
+      tick.current = window.setInterval(() => show([["big", pretty(num.current)], elapsed(), "speak / 1-4 lang"], "", "End"), 1000);
     });
     for (const ev of ["disconnect", "cancel", "reject"]) call.current.on(ev, hangup);
   }
@@ -99,11 +99,10 @@ export default function Phone() {
   }, []);
 
   const HOT_S = 120;   // rows touched by a call in the last two minutes stand out
-  const FOCUS_S = 30;  // the map stays on the newest of them for half a minute, then glides back to the overview
   const agoS = (ts: string) => (Date.now() - new Date(String(ts).replace(" ", "T") + "Z").getTime()) / 1000;
   const hotPoints = data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).sort((a, b) => agoS(a.updated) - agoS(b.updated));
   const hot = new Set(hotPoints.map((w) => w.id));
-  const focus = hotPoints[0] && agoS(hotPoints[0].updated) < FOCUS_S ? hotPoints[0] : null;
+  const focus = useFocus(data);  // the map goes to the place the newest call named and stays there until the next one
   const debug = location.search.includes("debug"); // ?debug=1 shows the hit areas
 
   // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
@@ -132,8 +131,8 @@ export default function Phone() {
       <div className="left">
       <div className="call-me"><span className="cta">text me</span><span className="num">{spaced(number)}</span>
         <div className="eg">
-          <span className="sent">{last ? last.body : "Zahanati is broken"}</span>
-          <span className="got">{last ? last.reply : "Recorded: Zahanati broken. Nearest working: Mama Nasa, ~15 min on foot."}</span>
+          <span className="sent">{last ? last.body : "Cibari spring is broken"}</span>
+          <span className="got">{last ? last.reply : "Recorded: Cibari spring broken. Nearest working: Karemera spring, ~5 min on foot."}</span>
         </div></div>
       <div className={`phone${buzz ? " buzz" : ""}`}>
         <img src={`${import.meta.env.BASE_URL}nokia3310.png`} alt="Nokia 3310" draggable={false} />
@@ -154,7 +153,7 @@ export default function Phone() {
       </div>
 
       <section className="mapbox" aria-label="Map">
-        <WaterMap waterpoints={data.waterpoints} focus={focus} className="panel-map" />
+        <WaterMap waterpoints={data.waterpoints} villages={data.villages} hazards={data.hazards} focus={focus} className="panel-map" />
       </section>
 
       <aside className="panel" aria-label="Live data">
@@ -167,6 +166,12 @@ export default function Phone() {
             </tr>
           ))}</tbody>
         </table></div>
+        {data.hazards.length > 0 && <>
+          <h2>Dangers on the way</h2>
+          <ul className="hz-list">{data.hazards.slice(0, 4).map((h) => (
+            <li key={h.id}><div>{HAZARD_LABEL[h.kind] ?? "Danger"}</div><div className="sub">{h.village} → {h.point} · {age(h.ts)} · anonymous</div></li>
+          ))}</ul>
+        </>}
         {errors.length > 0 && <ol className="log">
           {errors.map((e, i) => <li key={i} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
         </ol>}

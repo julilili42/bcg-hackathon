@@ -12,6 +12,11 @@ REAL = dict(store_facts=kb.store_facts, hybrid_search=kb.hybrid_search, status_h
 POINTS = [dict(id=1, name="Zahanati", village="Kigero", lat=-6.7788, lon=38.8615, status="ok", updated="2026-10-16 08:00:00"),
           dict(id=2, name="Mama Nasa", village="Vikuge", lat=-6.7700, lon=38.8600, status="ok", updated="2026-10-16 08:00:00"),
           dict(id=3, name="Rabo", village="Kati", lat=-6.8000, lon=38.9000, status="broken", updated="2026-10-16 08:00:00")]
+VILLAGES = [dict(name="Kigero", lat=-6.7790, lon=38.8610), dict(name="Vikuge", lat=-6.7705, lon=38.8605),
+            dict(name="Kati", lat=-6.7990, lon=38.8990)]
+
+
+HAZARDS = []  # rows the graph wrote to the hazard table
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +25,9 @@ def table(monkeypatch):
     points = [dict(p) for p in POINTS]
     monkeypatch.setattr(db, "waterpoints", lambda: [dict(p) for p in points])
     monkeypatch.setattr(db, "set_status", lambda wp_id, status: next(p for p in points if p["id"] == wp_id).update(status=status))
+    monkeypatch.setattr(db, "villages", lambda: [dict(v) for v in VILLAGES])
+    monkeypatch.setattr(db, "add_hazard", lambda *a: HAZARDS.append(a))
+    HAZARDS.clear()
     monkeypatch.setattr(kb, "store_facts", lambda *a: ["fact-id"])
     monkeypatch.setattr(kb, "hybrid_search", lambda *a: [])
     monkeypatch.setattr(kb, "status_history", lambda *a: [])
@@ -109,6 +117,35 @@ def test_interpretation_consistency_and_registry():
     assert i.facts[0].asset_id is None and g.point(i) is None
     i = g.Interpretation(intent="query", query="?", query_asset_id="Rabo")
     assert i.query_village == "Kati" and g.point(i) == "Rabo"
+
+
+def test_keywords_hazard_on_the_way_is_stored_anonymously_and_names_another_point(table):
+    r = g.handle_turn("Men harass women on the way from Kigero to Zahanati", "caller-abc", "t", "en")
+    assert r["intent"] == "report" and r["hazard"] and (r["village"], r["point"]) == ("Kigero", "Zahanati")
+    assert HAZARDS == [("Kigero", "Zahanati", "harassment", "Men harass women on the way from Kigero to Zahanati", "caller-abc")]
+    assert table[0]["status"] == "ok"  # a danger on the way is not a broken pump
+    assert r["answer"] == ("Thank you. Your safety report about the way from Kigero to Zahanati is recorded. Your name and number "
+                           "are not shown. From Kigero, another working water point is Mama Nasa, about 15 minutes on foot.")
+
+
+def test_hazard_resolves_the_missing_end_of_the_route():
+    near = g.Interpretation(intent="report", facts=[fact(asset_id=None, village="Kati", attribute="route_hazard", value="snakes")])
+    assert (near.facts[0].asset_id, near.facts[0].value) == ("Rabo", "other")  # nearest water point; unknown kinds become other
+    served = g.Interpretation(intent="report", facts=[fact(village="Atlantis", attribute="route_hazard", value="animals")])
+    assert g.place(served) == ("Kigero", "Zahanati") and g.hazard(served)
+
+
+def test_village_alone_is_a_place_to_show():
+    r = g.handle_turn("Kati imefungwa?", "u", "t", "sw")  # "is it blocked?": a question, the map still goes to Kati
+    assert r["intent"] == "query" and (r["village"], r["point"]) == ("Kati", None) and not r["hazard"]
+    assert r["answer"] == "Kutoka Kati, kisima cha karibu kinachofanya kazi ni Zahanati, takriban dakika 70 kwa miguu."
+    i = g.understand("Le chemin de Vikuge est bloqué, danger", "fr")
+    assert i.facts[0].attribute == "route_hazard" and g.place(i) == ("Vikuge", "Mama Nasa") and i.lang == "fr"
+
+
+def test_french_status_report():
+    r = g.handle_turn("La source Zahanati est en panne", "u", "t")
+    assert r["lang"] == "fr" and r["answer"].startswith("Merci. Zahanati est enregistré comme en panne. Depuis Zahanati, ")
 
 
 @pytest.mark.parametrize("timestamp,expected", [("2026-10-16T14:00:00", None), ("2026-10-16", None), ("this afternoon", None),

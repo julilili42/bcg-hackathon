@@ -1,4 +1,4 @@
-"""Download the two TTS models (~150 MB each) into models/sw and models/en.  Run: uv run scripts/download_models.py"""
+"""Download the TTS models (~150 MB each) into models/<lang>, one per language in gateway/tts.py.  Run: uv run scripts/download_models.py"""
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from huggingface_hub import snapshot_download
