@@ -22,6 +22,28 @@ Dashboard: /api/dashboard
 | `smoke.sh` | simulates Twilio against the local host |
 | `set_webhooks.sh` | points the Twilio number at your tunnel or Azure URL |
 
+## Quick start for the team
+
+Everything runs on one Twilio account and one phone number (**+1 865 459 8142**).
+Only one machine can receive the calls at a time: whoever runs the tunnel runs the demo.
+
+```bash
+git clone <repo> && cd reach-gateway
+uv sync                                   # Python 3.12 venv + deps
+uv run download_models.py                 # the two TTS models, ~300 MB, once
+cp local.settings.json.example local.settings.json
+#   -> fill in TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and ANTHROPIC_API_KEY (ask Julian, never commit them)
+uv run func start                         # local host on :7071, needs Azure Functions Core Tools
+cloudflared tunnel --url http://localhost:7071    # second terminal, prints a public https URL
+./set_webhooks.sh https://<that-url>      # third terminal: Twilio now sends calls/SMS to YOUR machine
+```
+
+Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboard
+
+Tools you need once: `uv` (brew install uv), `cloudflared` (brew install cloudflared),
+Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
+No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `set_webhooks.sh`.
+
 ## Run locally
 
 ```bash
