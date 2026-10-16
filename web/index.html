@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reach · Kisarawe</title>
+    <meta name="description" content="Live status of water points and clinics reported by phone, SMS and web." />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar" aria-label="Dashboard">
+        <header class="brand">
+          <div>
+            <h1>Reach</h1>
+            <p class="sub" id="place">Kisarawe District, Pwani</p>
+          </div>
+          <div class="brand-right">
+            <div class="live" id="live" title="Polling the API every 5 seconds"><span class="dot"></span>LIVE</div>
+            <button type="button" id="settings-btn" class="icon-btn" title="Settings" aria-expanded="false" aria-controls="settings-panel">⚙</button>
+          </div>
+        </header>
+        <section id="settings-panel" class="settings-panel" hidden></section>
+
+        <nav class="tabs" id="domain-tabs" aria-label="Use case"></nav>
+
+        <section class="stats" id="stats" aria-live="polite"></section>
+
+        <section class="legend" id="legend" aria-label="Legend"></section>
+
+        <nav class="tabs small" aria-label="Panel">
+          <button class="tab active" data-panel="feed" type="button">Feed</button>
+          <button class="tab" data-panel="detail" type="button">Selected</button>
+          <button class="tab" data-panel="talk" type="button">Conversations</button>
+        </nav>
+
+        <section id="panel-feed" class="panel active" aria-live="polite"></section>
+        <section id="panel-detail" class="panel"><p class="muted">Click a point on the map.</p></section>
+        <section id="panel-talk" class="panel"></section>
+
+        <footer class="attribution">
+          Water points: <a href="https://data.waterpointdata.org" target="_blank" rel="noreferrer">WPDx</a> (2008–09 surveys, unverified until someone reports).
+          Clinics: Tanzania Health Facility Registry via <a href="https://open.africa" target="_blank" rel="noreferrer">openAFRICA</a>.
+          Map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>.
+        </footer>
+      </aside>
+      <main id="map" aria-label="Map"></main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

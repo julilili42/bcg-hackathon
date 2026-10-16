@@ -1,7 +1,26 @@
+# python
 .venv/
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+api/requirements.txt
+.python_packages/
+
+# secrets and local state
 local.settings.json
-events.db
+*.db
+*.db-journal
 audio/
 models/
-.python_packages/
+
+# web
+web/node_modules/
+web/dist/
+
+# os
+.DS_Store

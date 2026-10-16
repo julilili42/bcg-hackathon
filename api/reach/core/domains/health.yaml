@@ -1,0 +1,90 @@
+id: health
+entity_type: clinic
+names:
+  sw: zahanati
+  en: clinic
+statuses:
+  good: [open]
+  bad: [closed, no_stock]
+  labels:
+    sw:
+      open: iko wazi
+      closed: imefungwa
+      no_stock: haina dawa wala lishe
+      unknown: hali haijulikani
+      disputed: ina taarifa zinazopingana
+    en:
+      open: open
+      closed: closed
+      no_stock: out of supplies
+      unknown: of unknown status
+      disputed: disputed
+status_keywords:
+  closed: [closed, "is closed", imefungwa, kimefungwa, "not open", shut, "haifanyi kazi", "hakifanyi kazi", "hakuna huduma", "hakuna mtu"]
+  no_stock:
+    - "no stock"
+    - "out of stock"
+    - "out of supplies"
+    - "no medicine"
+    - "no medicines"
+    - "no supplies"
+    - "no food"
+    - "stock out"
+    - "hakuna dawa"
+    - "hakuna chakula"
+    - "hakuna lishe"
+    - "dawa zimeisha"
+    - "chakula kimeisha"
+  open: [open, "is open", "iko wazi", "kiko wazi", imefunguliwa, kimefunguliwa, "inafanya kazi", "kinafanya kazi", "inatoa huduma", working, "has stock", "dawa zipo"]
+attributes:
+  level: string
+  services: string
+matching_hints: [zahanati, clinic, dispensary, hospitali, hospital, "kituo cha afya", "health centre", "health center", lishe, nutrition, dawa, daktari, doctor]
+alternative:
+  radius_km: 25
+  max_results: 3
+templates:
+  sw:
+    greet: "Karibu Reach. Sema jina la zahanati na hali yake. Kwa Kiingereza, bonyeza mbili."
+    unknown: "Samahani, sikuelewa jina la zahanati. Tafadhali sema jina la zahanati au kijiji."
+    recorded: "Asante. {name} imeandikwa kama {status}."
+    status: "{name} {status}."
+    unverified: " Taarifa hii haijathibitishwa hivi karibuni."
+    nearest: " Kituo cha karibu kilicho wazi ni {alt_name}, dakika {minutes} kwa miguu."
+    nearest_unverified: " Kituo cha karibu kilichoripotiwa kuwa wazi ni {alt_name}, dakika {minutes} kwa miguu."
+    none: " Hakuna kituo cha afya kilicho wazi karibu."
+    confirm: "Unamaanisha {name}? Bonyeza moja kwa ndiyo, mbili kwa hapana."
+    help: "Tuma jina la zahanati na hali yake, mfano: Zahanati Kisarawe imefungwa."
+    retry: "Sikusikia chochote. Tafadhali sema jina la zahanati na hali yake."
+    goodbye: "Asante kwa kupiga simu. Kwaheri."
+    too_many: "Umetuma ujumbe mwingi. Tafadhali jaribu tena baadaye."
+    cancelled: "Sawa. Tafadhali sema jina la zahanati tena."
+    confirm_sms: "Unamaanisha {name}? Jibu NDIYO au HAPANA."
+    choose: "Unamaanisha {a} au {b}? Bonyeza moja kwa {a}, mbili kwa {b}."
+    choose_sms: "Unamaanisha {a} au {b}? Jibu 1 au 2."
+    need_entity: "Umesema {status}. Zahanati gani? Tafadhali sema jina la zahanati au kijiji."
+    need_entity_sms: "Umesema {status}. Zahanati gani? Tafadhali tuma jina la zahanati au kijiji."
+    cancelled_sms: "Sawa. Tafadhali tuma jina kamili la zahanati."
+    give_up: "Samahani, sijaweza kuelewa. Tuma jina la zahanati na hali yake, mfano: Zahanati Msanga imefungwa."
+  en:
+    greet: "Welcome to Reach. Say the name of the clinic and whether it is open."
+    unknown: "Sorry, I did not catch the clinic name. Please say the clinic or village name."
+    recorded: "Thank you. {name} is recorded as {status}."
+    status: "{name} is {status}."
+    unverified: " This information is not recently verified."
+    nearest: " The nearest open facility is {alt_name}, about {minutes} minutes on foot."
+    nearest_unverified: " The nearest facility last reported open is {alt_name}, about {minutes} minutes on foot."
+    none: " There is no open health facility nearby."
+    confirm: "Did you mean {name}? Press one for yes, two for no."
+    help: "Send the clinic name and its status, for example: Kisarawe dispensary closed."
+    retry: "I did not hear anything. Please say the clinic name and its status."
+    goodbye: "Thank you for calling. Goodbye."
+    too_many: "You have sent too many messages. Please try again later."
+    cancelled: "Okay. Please say the clinic name again."
+    confirm_sms: "Did you mean {name}? Reply YES or NO."
+    choose: "Did you mean {a} or {b}? Press 1 for {a}, 2 for {b}."
+    choose_sms: "Did you mean {a} or {b}? Reply 1 or 2."
+    need_entity: "You said {status}. Which clinic? Please say its name or the village."
+    need_entity_sms: "You said {status}. Which clinic? Please send its name or the village."
+    cancelled_sms: "Okay. Please send the full clinic name."
+    give_up: "Sorry, I could not work that out. Send the clinic name and its status, for example: Msanga dispensary closed."

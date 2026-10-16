@@ -1,0 +1,317 @@
+openapi: 3.1.0
+info:
+  title: Reach API
+  version: 0.1.0
+  description: |
+    Contract between the Reach Functions app and the web map. Twilio webhooks (/api/voice,
+    /api/voice/handle, /api/voice/confirm, /api/sms, /api/audio/{name}) are covered by recorded-payload
+    tests, not by this spec. Enforced by api/tests/test_contract.py.
+servers:
+  - url: http://localhost:7071
+paths:
+  /api/health:
+    get:
+      summary: Liveness and configuration summary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+  /api/domains:
+    get:
+      summary: Configured use cases
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Domain" }
+  /api/entities:
+    get:
+      summary: Entities of one domain as GeoJSON
+      parameters:
+        - { name: domain, in: query, required: false, schema: { type: string, default: water } }
+        - { name: bbox, in: query, required: false, schema: { type: string }, description: "minLon,minLat,maxLon,maxLat" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FeatureCollection" }
+        "404": { description: unknown domain }
+        "422": { description: bad bbox }
+  /api/entities/{entity_id}:
+    get:
+      summary: One entity with its reports and alternatives
+      parameters:
+        - { name: entity_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntityDetail" }
+        "404": { description: not found }
+  /api/reports:
+    get:
+      summary: Recent live reports (imports excluded)
+      parameters:
+        - { name: domain, in: query, required: false, schema: { type: string } }
+        - { name: since, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50, minimum: 1, maximum: 500 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Report" }
+    post:
+      summary: Record a report from the web form
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportIn" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportCreated" }
+        "404": { description: entity not found }
+        "422": { description: invalid status for the domain }
+  /api/stats:
+    get:
+      summary: Headline numbers for one domain
+      parameters:
+        - { name: domain, in: query, required: false, schema: { type: string, default: water } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stats" }
+        "404": { description: unknown domain }
+  /api/interactions:
+    get:
+      summary: Recent conversations (what people said, what Reach answered)
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 30, minimum: 1, maximum: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Interaction" }
+  /api/sim/voice:
+    post:
+      summary: Virtual demo phone, start a call (unsigned twin of /api/voice; needs DEMO_PHONE=1)
+      parameters:
+        - { name: lang, in: query, schema: { type: string, enum: [sw, en], default: sw }, description: greeting language }
+      requestBody: { content: { application/x-www-form-urlencoded: { schema: { type: object, properties: { From: { type: string } } } } } }
+      responses:
+        "200": { description: TwiML, content: { text/xml: { schema: { type: string } } } }
+        "404": { description: demo phone disabled }
+  /api/sim/voice/handle:
+    post:
+      summary: Virtual demo phone, what the caller said (SpeechResult) or pressed (Digits)
+      parameters:
+        - { name: lang, in: query, schema: { type: string, enum: [sw, en], default: sw } }
+        - { name: domain, in: query, schema: { type: string } }
+        - { name: retry, in: query, schema: { type: integer, default: 0 } }
+      requestBody: { content: { application/x-www-form-urlencoded: { schema: { type: object, properties: { From: { type: string }, SpeechResult: { type: string }, Digits: { type: string } } } } } }
+      responses:
+        "200": { description: TwiML, content: { text/xml: { schema: { type: string } } } }
+        "404": { description: demo phone disabled }
+  /api/sim/voice/answer:
+    post:
+      summary: Virtual demo phone, answer to a follow-up question
+      parameters:
+        - { name: lang, in: query, schema: { type: string, enum: [sw, en], default: sw } }
+        - { name: domain, in: query, schema: { type: string } }
+        - { name: retry, in: query, schema: { type: integer, default: 0 } }
+      requestBody: { content: { application/x-www-form-urlencoded: { schema: { type: object, properties: { From: { type: string }, SpeechResult: { type: string }, Digits: { type: string } } } } } }
+      responses:
+        "200": { description: TwiML, content: { text/xml: { schema: { type: string } } } }
+        "404": { description: demo phone disabled }
+  /api/sim/sms:
+    post:
+      summary: Virtual demo phone, send an SMS (unsigned twin of /api/sms)
+      requestBody: { content: { application/x-www-form-urlencoded: { schema: { type: object, required: [Body], properties: { From: { type: string }, Body: { type: string } } } } } }
+      responses:
+        "200": { description: TwiML with <Message>, content: { text/xml: { schema: { type: string } } } }
+        "404": { description: demo phone disabled }
+  /api/admin/reset:
+    post:
+      summary: Demo reset (requires X-Admin-Token)
+      parameters:
+        - { name: mode, in: query, required: false, schema: { type: string, enum: [live, all], default: live } }
+        - { name: X-Admin-Token, in: header, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResetResult" }
+        "403": { description: missing or wrong token }
+components:
+  schemas:
+    Health:
+      type: object
+      required: [status, version, domains, entities, understanding, tts, demo_phone, time]
+      properties:
+        status: { type: string }
+        version: { type: string }
+        domains: { type: array, items: { type: string } }
+        entities: { type: integer }
+        understanding: { type: string }
+        tts: { type: string }
+        demo_phone: { type: boolean }
+        time: { type: string }
+    Domain:
+      type: object
+      required: [id, entity_type, names, good_statuses, bad_statuses, status_labels]
+      properties:
+        id: { type: string }
+        entity_type: { type: string }
+        names: { type: object, additionalProperties: { type: string } }
+        good_statuses: { type: array, items: { type: string } }
+        bad_statuses: { type: array, items: { type: string } }
+        status_labels:
+          type: object
+          additionalProperties: { type: object, additionalProperties: { type: string } }
+    EntityProperties:
+      type: object
+      required: [id, domain_id, name, aliases, source, current_status, confidence, verified, status_label, is_good]
+      properties:
+        id: { type: string }
+        domain_id: { type: string }
+        name: { type: string }
+        aliases: { type: array, items: { type: string } }
+        adm1: { type: [string, "null"] }
+        adm2: { type: [string, "null"] }
+        adm3: { type: [string, "null"] }
+        attributes: { type: object }
+        source: { type: string }
+        external_id: { type: [string, "null"] }
+        current_status: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        last_report_at: { type: [string, "null"] }
+        served_population: { type: [integer, "null"] }
+        verified: { type: boolean }
+        status_label: { type: object, required: [en, sw], properties: { en: { type: string }, sw: { type: string } } }
+        is_good: { type: boolean }
+    Feature:
+      type: object
+      required: [type, id, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        id: { type: string }
+        geometry:
+          type: object
+          required: [type, coordinates]
+          properties:
+            type: { type: string, const: Point }
+            coordinates: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+        properties: { $ref: "#/components/schemas/EntityProperties" }
+    FeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features: { type: array, items: { $ref: "#/components/schemas/Feature" } }
+    Report:
+      type: object
+      required: [id, entity_id, reporter_hash, channel, status_claimed, weight, created_at]
+      properties:
+        id: { type: integer }
+        entity_id: { type: string }
+        entity_name: { type: [string, "null"] }
+        domain_id: { type: [string, "null"] }
+        reporter_hash: { type: string, maxLength: 8 }
+        channel: { type: string, enum: [voice, sms, web, import] }
+        lang: { type: [string, "null"] }
+        raw_text: { type: [string, "null"] }
+        status_claimed: { type: string }
+        note: { type: [string, "null"] }
+        weight: { type: number }
+        created_at: { type: string }
+    ReportIn:
+      type: object
+      required: [entity_id, status]
+      properties:
+        entity_id: { type: string }
+        status: { type: string }
+        note: { type: [string, "null"], maxLength: 500 }
+        lang: { type: string, enum: [sw, en], default: en }
+    Alternative:
+      type: object
+      required: [entity_id, name, distance_km, walk_minutes, status, confidence, verified]
+      properties:
+        entity_id: { type: string }
+        name: { type: string }
+        distance_km: { type: number }
+        walk_minutes: { type: integer }
+        status: { type: string }
+        confidence: { type: number }
+        verified: { type: boolean }
+    EntityDetail:
+      type: object
+      required: [entity, reports, alternatives]
+      properties:
+        entity: { $ref: "#/components/schemas/Feature" }
+        reports: { type: array, items: { $ref: "#/components/schemas/Report" } }
+        alternatives: { type: array, items: { $ref: "#/components/schemas/Alternative" } }
+    ReportCreated:
+      type: object
+      required: [entity, derived, alternatives]
+      properties:
+        entity: { $ref: "#/components/schemas/Feature" }
+        derived:
+          type: object
+          required: [status, confidence, report_count, votes]
+          properties:
+            status: { type: string }
+            confidence: { type: number }
+            report_count: { type: integer }
+            votes: { type: object, additionalProperties: { type: number } }
+        alternatives: { type: array, items: { $ref: "#/components/schemas/Alternative" } }
+    Stats:
+      type: object
+      required: [domain_id, total, by_status, people_affected, verified, unverified, disputed, reports_24h]
+      properties:
+        domain_id: { type: string }
+        total: { type: integer }
+        by_status: { type: object, additionalProperties: { type: integer } }
+        people_affected: { type: integer }
+        verified: { type: integer }
+        unverified: { type: integer }
+        disputed: { type: integer }
+        reports_24h: { type: integer }
+    Interaction:
+      type: object
+      required: [id, channel, sender_hash, body, reply, intent, latency_ms, created_at]
+      properties:
+        id: { type: integer }
+        channel: { type: string }
+        sender_hash: { type: string, maxLength: 8 }
+        lang: { type: [string, "null"] }
+        body: { type: string }
+        reply: { type: string }
+        intent: { type: string }
+        entity_id: { type: [string, "null"] }
+        latency_ms: { type: integer }
+        created_at: { type: string }
+    ResetResult:
+      type: object
+      required: [reset, entities]
+      properties:
+        reset: { type: string, enum: [live, all] }
+        entities: { type: integer }

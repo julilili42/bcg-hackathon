@@ -1,0 +1,10 @@
+entity_id,alias,baseline_status,note
+wpdx:288125,Shule,ok,Kisarawe Rainwater 3; 0.0 km from Shule
+wpdx:185836,Kanisa,ok,Kisarawe Rainwater 1; 0.2 km from Shule
+wpdx:818795,Soko,broken,Kisarawe Rainwater 4; 1.2 km from Shule
+wpdx:292753,Msikiti,ok,Kisarawe Borehole 1; 3.3 km from Shule
+wpdx:404481,Bwawa,empty,Kisarawe Borehole 2; 7.1 km from Shule
+wpdx:185854,Stesheni,ok,Kisarawe Rainwater 2; 10.7 km from Shule
+hfr:105431-1,,open,Msanga Dispensary
+hfr:104356-1,,open,Marui Dispensary
+hfr:104371-0,,open,Masaki Health Centre

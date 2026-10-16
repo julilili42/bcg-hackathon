@@ -1,0 +1,23 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "DATABASE_URL": "",
+    "TWILIO_ACCOUNT_SID": "",
+    "TWILIO_AUTH_TOKEN": "",
+    "TWILIO_VALIDATE": "0",
+    "PUBLIC_BASE_URL": "",
+    "ANTHROPIC_API_KEY": "",
+    "CLAUDE_MODEL": "claude-opus-5-5",
+    "CLAUDE_TIMEOUT_S": "4",
+    "CLAUDE_FALLBACKS": "1",
+    "REPORTER_SALT": "",
+    "TTS_PROVIDER": "auto",
+    "AZURE_SPEECH_KEY": "",
+    "AZURE_SPEECH_REGION": "",
+    "ADMIN_TOKEN": "",
+    "DEMO_PHONE": "1",
+    "DEFAULT_DOMAIN": "water"
+  }
+}

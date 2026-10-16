@@ -1,0 +1,133 @@
+id: water
+entity_type: water_point
+names:
+  sw: kisima
+  en: water point
+statuses:
+  good: [ok]
+  bad: [broken, empty]
+  labels:
+    sw:
+      ok: inafanya kazi
+      broken: imeharibika
+      empty: haina maji
+      unknown: hali haijulikani
+      disputed: ina taarifa zinazopingana
+    en:
+      ok: working
+      broken: broken
+      empty: empty
+      unknown: of unknown status
+      disputed: disputed
+status_keywords:
+  broken:
+    - broken
+    - "not working"
+    - "isn't working"
+    - "is not working"
+    - "not work"
+    - "doesn't work"
+    - "does not work"
+    - "no longer works"
+    - "out of order"
+    - damaged
+    - "stopped working"
+    - imeharibika
+    - kimeharibika
+    - zimeharibika
+    - "haifanyi kazi"
+    - "hakifanyi kazi"
+    - "hazifanyi kazi"
+    - haifanyi
+    - hakifanyi
+    - mbovu
+    - kibovu
+    - imevunjika
+    - kimevunjika
+    - imeharibiwa
+  empty:
+    - empty
+    - dry
+    - "no water"
+    - "ran dry"
+    - "has no water"
+    - "hakuna maji"
+    - "haina maji"
+    - "hakina maji"
+    - kavu
+    - imekauka
+    - kimekauka
+    - yamekauka
+  ok:
+    - working
+    - works
+    - "is working"
+    - "working again"
+    - fine
+    - fixed
+    - repaired
+    - "is ok"
+    - "inafanya kazi"
+    - "kinafanya kazi"
+    - "zinafanya kazi"
+    - inafanya
+    - kinafanya
+    - nzuri
+    - "iko sawa"
+    - "kiko sawa"
+    - imetengenezwa
+    - kimetengenezwa
+    - "yana maji"
+    - "kina maji"
+attributes:
+  water_source: string
+  water_tech: string
+matching_hints: [kisima, visima, maji, pump, pampu, well, borehole, tap, bomba, water, spring, chemchemi, kisima cha]
+alternative:
+  radius_km: 15
+  max_results: 3
+templates:
+  sw:
+    greet: "Karibu Reach. Sema jina la kisima na hali yake. Kwa Kiingereza, bonyeza mbili."
+    unknown: "Samahani, sikuelewa jina la kisima. Tafadhali sema jina la kisima au kijiji."
+    recorded: "Asante. {name} imeandikwa kama {status}."
+    status: "{name} {status}."
+    unverified: " Taarifa hii ni ya zamani na haijathibitishwa."
+    nearest: " Kisima cha karibu kinachofanya kazi ni {alt_name}, dakika {minutes} kwa miguu."
+    nearest_unverified: " Kisima cha karibu kilichoripotiwa kufanya kazi ni {alt_name}, dakika {minutes} kwa miguu."
+    none: " Hakuna kisima kinachofanya kazi karibu."
+    confirm: "Unamaanisha {name}? Bonyeza moja kwa ndiyo, mbili kwa hapana."
+    help: "Tuma jina la kisima na hali yake, mfano: Shule imeharibika. Au uliza: maji karibu na Kisarawe."
+    retry: "Sikusikia chochote. Tafadhali sema jina la kisima na hali yake."
+    goodbye: "Asante kwa kupiga simu. Kwaheri."
+    too_many: "Umetuma ujumbe mwingi. Tafadhali jaribu tena baadaye."
+    cancelled: "Sawa. Tafadhali sema jina la kisima tena."
+    confirm_sms: "Unamaanisha {name}? Jibu NDIYO au HAPANA."
+    choose: "Unamaanisha {a} au {b}? Bonyeza moja kwa {a}, mbili kwa {b}."
+    choose_sms: "Unamaanisha {a} au {b}? Jibu 1 au 2."
+    need_entity: "Umesema {status}. Kisima gani? Tafadhali sema jina la kisima au kijiji."
+    need_entity_sms: "Umesema {status}. Kisima gani? Tafadhali tuma jina la kisima au kijiji."
+    cancelled_sms: "Sawa. Tafadhali tuma jina kamili la kisima."
+    give_up: "Samahani, sijaweza kuelewa. Tuma jina la kisima na hali yake, mfano: Shule imeharibika."
+  en:
+    greet: "Welcome to Reach. Say the name of the water point and whether it works."
+    unknown: "Sorry, I did not catch the name of the water point. Please say the water point or village name."
+    recorded: "Thank you. {name} is recorded as {status}."
+    status: "{name} is {status}."
+    unverified: " This information is old and not verified."
+    nearest: " The nearest working water point is {alt_name}, about {minutes} minutes on foot."
+    nearest_unverified: " The nearest water point last reported working is {alt_name}, about {minutes} minutes on foot."
+    none: " There is no working water point nearby."
+    confirm: "Did you mean {name}? Press one for yes, two for no."
+    help: "Send the water point name and its status, for example: Shule broken. Or ask: water near Kisarawe."
+    retry: "I did not hear anything. Please say the water point name and its status."
+    goodbye: "Thank you for calling. Goodbye."
+    too_many: "You have sent too many messages. Please try again later."
+    cancelled: "Okay. Please say the water point name again."
+    confirm_sms: "Did you mean {name}? Reply YES or NO."
+    choose: "Did you mean {a} or {b}? Press 1 for {a}, 2 for {b}."
+    choose_sms: "Did you mean {a} or {b}? Reply 1 or 2."
+    need_entity: "You said {status}. Which water point? Please say its name or the village."
+    need_entity_sms: "You said {status}. Which water point? Please send its name or the village."
+    cancelled_sms: "Okay. Please send the full water point name."
+    give_up: "Sorry, I could not work that out. Send the water point name and its status, for example: Shule broken."

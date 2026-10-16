@@ -1,0 +1,17 @@
+facility_id,name,common_name,region,district,council,ward,village,level,operating_status,ownership,lat,lon,source_updated
+107512-6,Sofu,Sofu,Pwani,Kisarawe,Kisarawe DC,Cholesamvula,Sofu,Dispensary,Operating,Public - LGA,-7.27418,38.65374,2016-06-22
+105431-1,Msanga,Msanga,Pwani,Kisarawe,Kisarawe DC,Msanga,Msanga,Dispensary,Operating,Public - LGA,-7.28435,38.77012,2016-06-22
+105952-6,Mwanzomgumu,mwanzomgumu,Pwani,Kisarawe,Kisarawe DC,Msimbu,Msimbu,Dispensary,Operating,Public - LGA,-7.15748,39.0014,2016-06-22
+106047-4,Mzenga,mzenga,Pwani,Kisarawe,Kisarawe DC,Mzenga,Mzenga 'A',Health Center,Operating,Public - LGA,-6.9342,38.72203,2016-06-22
+104356-1,Marui,marui mipera,Pwani,Kisarawe,Kisarawe DC,Marui,Marui Mipera,Dispensary,Operating,Public - LGA,-7.36529,38.77342,2016-06-22
+104363-7,Marumbo,marumbo,Pwani,Kisarawe,Kisarawe DC,Marumbo,Marumbo,Dispensary,Operating,Public - LGA,-7.15267,38.82595,2016-06-22
+104371-0,Masaki,Masaki,Pwani,Kisarawe,Kisarawe DC,Masaki,Masaki,Health Center,Operating,Public - LGA,-7.08268,38.97578,2016-06-22
+104380-1,Masanganya,Masanganya,Pwani,Kisarawe,Kisarawe DC,Kibuta,Masanganya,Dispensary,Operating,Public - LGA,-7.16598,38.9074,2016-06-22
+103343-0,Kurui,Kurui,Pwani,Kisarawe,Kisarawe DC,Kurui,Kurui,Dispensary,Operating,Public - LGA,-7.05407,38.74156,2016-06-22
+103881-9,Mafizi,mafizi,Pwani,Kisarawe,Kisarawe DC,Mafizi,Mafizi,Dispensary,Operating,Public - LGA,-6.98046,38.58892,2016-06-22
+104237-3,Maneromango,maneromango,Pwani,Kisarawe,Kisarawe DC,Maneromango,Maneromango Kaskazini,Health Center,Operating,Public - LGA,-7.20294,38.78455,2016-06-22
+104236-5,Maneromango KKKT,Maneromango Mission,Pwani,Kisarawe,Kisarawe DC,Maneromango,Maneromango,Dispensary,Operating,Private - Faith based organization (FBO),-7.19918,38.77823,2016-06-22
+108590-1,Kazimzumbwi,Kazimzumbwi,Pwani,Kisarawe,Kisarawe DC,Kisarawe,Kazimzumbwi,Dispensary,Operating,Public - LGA,-7.00039,38.71558,2016-06-22
+102587-3,Kibasila JWTZ,Kibasila kj,Pwani,Kisarawe,Kisarawe DC,Kisarawe,Kisarawe,Dispensary,Operating,Public - Military,-6.91587,39.07156,2016-06-22
+102669-9,Kidugalo,kidugalo,Pwani,Kisarawe,Kisarawe DC,Kurui,Kidugalo,Dispensary,Operating,Public - LGA,-7.09676,38.77347,2016-06-22
+102738-2,Kihare,kihare,Pwani,Kisarawe,Kisarawe DC,Marui,Marui Mipera,Dispensary,Operating,Public - LGA,-7.46942,38.6695,2016-06-22
