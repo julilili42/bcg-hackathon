@@ -16,8 +16,7 @@ uv run download_models.py                 # the two TTS models, ~300 MB, once
 cp local.settings.json.example local.settings.json
 #   -> fill in TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and ANTHROPIC_API_KEY (ask Julian, never commit them)
 uv run func start                         # local host on :7071, needs Azure Functions Core Tools
-cloudflared tunnel --url http://localhost:7071    # second terminal, prints a public https URL
-./set_webhooks.sh https://<that-url>      # third terminal: Twilio now sends calls/SMS to YOUR machine
+./tunnel.sh                               # second terminal: public URL + Twilio now sends calls/SMS to YOUR machine
 ```
 
 Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboard
@@ -42,7 +41,8 @@ Dashboard: /api/dashboard
 | `download_models.py` | fetches the two TTS models into `models/` |
 | `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
 | `smoke.sh` | simulates Twilio against the local host |
-| `set_webhooks.sh` | points the Twilio number at your tunnel or Azure URL |
+| `tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
+| `set_webhooks.sh` | points the Twilio number at any public URL (tunnel or Azure) |
 
 ## Run locally
 
@@ -55,9 +55,9 @@ func start                       # http://localhost:7071  (uses .venv)
 ./smoke.sh                       # second terminal
 ```
 
-Public URL for a real phone: `cloudflared tunnel --url http://localhost:7071`, then
-`./set_webhooks.sh https://<tunnel-host>`. Only one machine can own the webhooks at a time;
-whoever runs the tunnel runs the demo.
+Public URL for a real phone: `./tunnel.sh` starts cloudflared and points the Twilio number at it.
+Quick tunnels die after a while; "We're sorry, an application error has occurred" on the phone
+means: run `./tunnel.sh` again. Only one machine can own the webhooks at a time.
 
 ## Settings (`local.settings.json` / Azure App Settings)
 
@@ -71,13 +71,13 @@ whoever runs the tunnel runs the demo.
 ## Call flow
 
 1. Greeting in Swahili: say the water point and its state. Press 2 for English.
-2. Twilio transcribes (`sw-TZ` or `en-US`). `brain.reply()` asks Claude for `{point, status, lang}`
+2. Twilio transcribes with Google chirp_3 (`sw-KE` or `en-US`; chirp_3 has no `sw-TZ`, same spoken language). `brain.reply()` asks Claude for `{point, status, lang}`
    (loose name matching survives speech-recognition errors), sets `ok|broken|empty` if the caller
    reported, and answers with the nearest working point and walking minutes. SMS answers in the
    language the message was written in.
 3. Reply spoken with MMS-TTS (`facebook/mms-tts-swh` / `-eng`), then hang up.
 
-Why speech-to-text is Twilio's and not a local model: Twilio Gather supports `sw-TZ` out of the box and
+Why speech-to-text is Twilio's and not a local model: Twilio Gather with chirp_3 supports Swahili out of the box and
 Whisper-small is weak on Swahili. Text-to-speech is local because Twilio has no Swahili voice.
 
 ## Deploy to Azure

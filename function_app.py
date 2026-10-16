@@ -4,7 +4,8 @@ import azure.functions as func
 import db, brain, tts
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
-STT = {"sw": "sw-TZ", "en": "en-US"}
+STT = {"sw": "sw-KE", "en": "en-US"}  # Google chirp_3 has sw-KE, no sw-TZ; same language on the phone
+STT_MODEL = "googlev2_chirp_3"  # the only Twilio speech model with Swahili
 
 
 def twiml(inner):
@@ -21,7 +22,7 @@ def say(req, text, lang):
 
 
 def gather(req, prompt, lang):
-    return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechTimeout='auto' "
+    return (f"<Gather input='speech dtmf' numDigits='1' language='{STT[lang]}' speechModel='{STT_MODEL}' speechTimeout='auto' "
             f"action='/api/voice/handle?lang={lang}' method='POST'>{say(req, prompt, lang)}</Gather>")
 
 
