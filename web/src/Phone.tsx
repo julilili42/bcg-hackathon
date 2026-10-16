@@ -122,7 +122,7 @@ export default function Phone() {
       <aside className="panel" aria-label="Live data">
         <header><div className="call-me"><span className="cta">give me a call</span><span className="num">{spaced(number)}</span></div></header>
         <section>
-          <h2>Water points <span className="live-dot" title="live" /><span className="hint">live, every 2 s</span></h2>
+          <h2>Water points <span className="live-dot" title="live" /></h2>
           <table className={`wp${hot.size ? " focus" : ""}`}>
             <thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated</th></tr></thead>
             <tbody>{data.waterpoints.map((w) => (
