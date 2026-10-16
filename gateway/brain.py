@@ -63,7 +63,7 @@ def understand(text, lang=None):
 def _claude(text, names):
     import anthropic
     r = anthropic.Anthropic().messages.create(
-        model="claude-opus-5-5", max_tokens=256, output_config={"effort": "low"},
+        model="claude-opus-5-5", max_tokens=80, output_config={"effort": "low"},  # the JSON is ~40 tokens
         system="A caller to a rural water hotline said one sentence, in Swahili, English or German, possibly garbled by speech recognition. "
                f"Known water points: {names}. Match the name loosely (spelling, case, partial). "
                'Answer with JSON only: {"point": <known name or null>, "status": "ok"|"broken"|"empty"|null, "lang": "sw"|"en"|"de"}. '
