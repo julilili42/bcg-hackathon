@@ -16,3 +16,7 @@ CREATE TABLE waterpoints (
   status  VARCHAR(8) DEFAULT 'ok',   -- 'ok' | 'broken' | 'empty'
   updated DATETIME2 DEFAULT SYSUTCDATETIME()
 );
+CREATE TABLE callers (          -- language a phone number chose, asked only on the first call
+  sender  VARCHAR(40) PRIMARY KEY,
+  lang    VARCHAR(2)
+);

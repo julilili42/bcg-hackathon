@@ -13,6 +13,7 @@ def _connect():
     c = sqlite3.connect(os.path.join(ROOT, "db", "events.db"))
     c.execute("""CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT)""")
+    c.execute("CREATE TABLE IF NOT EXISTS callers (sender TEXT PRIMARY KEY, lang TEXT)")
     c.execute("""CREATE TABLE IF NOT EXISTS waterpoints (id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT, village TEXT, lat REAL, lon REAL, status TEXT DEFAULT 'ok', updated TEXT DEFAULT CURRENT_TIMESTAMP)""")
     if not c.execute("SELECT 1 FROM waterpoints LIMIT 1").fetchone():
@@ -48,6 +49,19 @@ def waterpoints():
 def set_status(wp_id, status):
     with _connect() as c:
         c.execute("UPDATE waterpoints SET status=?, updated=CURRENT_TIMESTAMP WHERE id=?", (status, wp_id))
+        c.commit()
+
+
+def get_lang(sender):
+    with _connect() as c:
+        r = c.execute("SELECT lang FROM callers WHERE sender=?", (sender,)).fetchone()
+    return r[0] if r else None
+
+
+def set_lang(sender, lang):
+    with _connect() as c:
+        c.execute("DELETE FROM callers WHERE sender=?", (sender,))
+        c.execute("INSERT INTO callers(sender,lang) VALUES (?,?)", (sender, lang))
         c.commit()
 
 

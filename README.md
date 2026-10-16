@@ -1,7 +1,7 @@
 # Reach Gateway
 
 Phone-in water point status line. A caller says the name of a water point and whether it works,
-in **Swahili** or **English**. The system records it and answers right away with the nearest
+in **Swahili**, **English** or **German**. The system records it and answers right away with the nearest
 working water point. Also works over SMS.
 
 ## Quick start for the team
@@ -106,15 +106,19 @@ water points with status and age, plus the last calls, refreshed every 2 s.
 
 ## Call flow
 
-1. Greeting in Swahili: say the water point and its state. Press 2 for English.
-2. Twilio transcribes with Google chirp_3 (`sw-KE` or `en-US`; chirp_3 has no `sw-TZ`, same spoken language). `brain.reply()` asks Claude for `{point, status, lang}`
-   (loose name matching survives speech-recognition errors), sets `ok|broken|empty` if the caller
-   reported, and answers with the nearest working point and walking minutes. SMS answers in the
+1. First call from a number: language menu, 1 Swahili, 2 English, 3 German. The choice is stored
+   per number (`callers` table); later calls skip the menu. A digit during the question switches.
+2. One free sentence. Twilio transcribes with Google chirp_3 (`sw-KE`, `en-US`, `de-DE`).
+   `brain.understand()` asks Claude for `{point, status, lang}`; loose name matching survives
+   speech-recognition errors.
+3. Nothing understood: "say it again", once. Low Twilio confidence (< 0.6): "Did you say X? 1 = yes".
+4. `brain.answer()` sets `ok|broken|empty` if the caller reported and answers with the nearest
+   working point and walking minutes. Then "press 1 to report another", else goodbye.
+5. Replies are spoken with MMS-TTS (`facebook/mms-tts-swh`, `-eng`, `-deu`). SMS answers in the
    language the message was written in.
-3. Reply spoken with MMS-TTS (`facebook/mms-tts-swh` / `-eng`), then hang up.
 
-Why speech-to-text is Twilio's and not a local model: Twilio Gather with chirp_3 supports Swahili out of the box and
-Whisper-small is weak on Swahili. Text-to-speech is local because Twilio has no Swahili voice.
+Why speech-to-text is Twilio's and not a local model: Twilio Gather with chirp_3 supports Swahili out
+of the box and Whisper-small is weak on Swahili. Text-to-speech is local because Twilio has no Swahili voice.
 
 ## Deploy to Azure
 

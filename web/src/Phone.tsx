@@ -1,5 +1,5 @@
 // Real Nokia 3310 photo as chassis; a real call through Twilio Voice SDK -> TwiML App -> /api/voice.
-// Navi key = call, C = hang up / clear, digits = DTMF during a call (2 = English). Right side: the live database.
+// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Right side: the live database.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
 import { age, useEvents } from "./api";
@@ -43,7 +43,7 @@ export default function Phone() {
     setInCall(true);
     call.current.on("accept", () => {
       startedAt.current = Date.now();
-      tick.current = window.setInterval(() => show([["big", pretty(num.current)], elapsed(), "speak / 2=EN"], "", "End"), 1000);
+      tick.current = window.setInterval(() => show([["big", pretty(num.current)], elapsed(), "speak / 1 sw 2 en 3 de"], "", "End"), 1000);
     });
     for (const ev of ["disconnect", "cancel", "reject"]) call.current.on(ev, hangup);
   }
@@ -130,7 +130,7 @@ export default function Phone() {
           </table>
         </section>
         <section>
-          <h2>Last calls <span className="hint">Navi = call · C = hang up · 2 = English</span></h2>
+          <h2>Last calls <span className="hint">Navi = call · C = hang up · 1 sw · 2 en · 3 de</span></h2>
           <ol className="log">
             {errors.map((e, i) => <li key={`e${i}`} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
             {!calls.length && <li className="empty">No calls yet.</li>}
