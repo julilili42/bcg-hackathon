@@ -89,3 +89,17 @@ ol.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction:
 .legend { background: #fff; padding: 6px 10px; border-radius: 4px; font: 13px system-ui, sans-serif; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .legend a { display: block; margin-top: 4px; }
+
+/* a call just changed a row: it glows, everything else steps back */
+table.wp.focus tr:not(.hot) td { opacity: .32; transition: opacity .6s; }
+table.wp tr.hot td { opacity: 1; background: rgba(255,255,255,.06); }
+table.wp tr.hot td:first-child { box-shadow: inset 3px 0 0 #fff; font-weight: 600; }
+table.wp tr.hot td.status { text-shadow: 0 0 10px currentColor; }
+/* last calls, collapsed by default */
+details.calls { background: var(--panel); border-radius: 16px; padding: 16px 20px; min-height: 0; overflow: hidden; }
+details.calls summary { list-style: none; cursor: pointer; }
+details.calls summary::-webkit-details-marker { display: none; }
+details.calls summary h2 { margin: 0; }
+details.calls summary h2::before { content: "▸"; margin-right: 6px; font-size: 11px; }
+details.calls[open] summary h2::before { content: "▾"; }
+details.calls[open] summary h2 { margin-bottom: 10px; }

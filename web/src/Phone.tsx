@@ -95,6 +95,9 @@ export default function Phone() {
     return c;
   }, [data]);
   const calls = data.events.filter((e) => e.channel === "voice").slice(0, 3);
+  const HOT_S = 120;  // rows touched by a call in the last two minutes stand out, the rest dims
+  const agoS = (ts: string) => (Date.now() - new Date(String(ts).replace(" ", "T") + "Z").getTime()) / 1000;
+  const hot = new Set(data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).map((w) => w.id));
   const debug = location.search.includes("debug"); // ?debug=1 shows the hit areas
 
   return (
@@ -120,17 +123,17 @@ export default function Phone() {
         <header><h1>Reach Line</h1><span className="num">{spaced(number)}</span></header>
         <section>
           <h2>Water points <span className="live-dot" title="live" /><span className="hint">live, every 2 s</span></h2>
-          <table className="wp">
+          <table className={`wp${hot.size ? " focus" : ""}`}>
             <thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated</th></tr></thead>
             <tbody>{data.waterpoints.map((w) => (
-              <tr key={w.id} className={changed.has(w.id) ? "changed" : ""}>
+              <tr key={w.id} className={`${hot.has(w.id) ? "hot" : ""}${changed.has(w.id) ? " changed" : ""}`}>
                 <td>{w.name}</td><td>{w.village}</td><td className={`status ${w.status}`}>{w.status}</td><td className="age">{age(w.updated)}</td>
               </tr>
             ))}</tbody>
           </table>
         </section>
-        <section>
-          <h2>Last calls <span className="hint">Navi = call · C = hang up · 1 sw · 2 en · 3 de</span></h2>
+        <details className="calls">
+          <summary><h2>Last calls <span className="hint">Navi = call · C = hang up · 1 sw · 2 en · 3 de</span></h2></summary>
           <ol className="log">
             {errors.map((e, i) => <li key={`e${i}`} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
             {!calls.length && <li className="empty">No calls yet.</li>}
@@ -142,7 +145,7 @@ export default function Phone() {
               </li>
             ))}
           </ol>
-        </section>
+        </details>
       </aside>
     </div>
   );
