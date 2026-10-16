@@ -49,7 +49,7 @@ def voice_handle(req):
     if f.get("Digits") == "2":
         return twiml(gather(req, brain.T["en"]["greet"], "en"))
     text = f.get("SpeechResult", "")
-    answer = brain.reply(text, lang)
+    answer, lang = brain.reply(text, lang)
     db.log("voice", f.get("From", "?"), lang, text, answer)
     return twiml(say(req, answer, lang) + "<Hangup/>")
 
@@ -60,8 +60,7 @@ def sms(req):
         return func.HttpResponse(status_code=403)
     f = req.form
     text = f.get("Body", "")
-    lang = "sw" if any(w in text.lower() for w in ["kisima", "maji", "imeharibika", "inafanya"]) else "en"
-    answer = brain.reply(text, lang)
+    answer, lang = brain.reply(text)
     db.log("sms", f.get("From", "?"), lang, text, answer)
     return twiml(f"<Message>{html.escape(answer)}</Message>")
 

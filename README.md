@@ -14,7 +14,7 @@ Dashboard: /api/dashboard
 | File | Does |
 |---|---|
 | `function_app.py` | Twilio webhooks, TwiML, routes |
-| `brain.py` | understand (Azure OpenAI or keywords) → update status → reply text, sw/en templates |
+| `brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
 | `tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
 | `db.py` | `events` + `waterpoints`, Azure SQL or SQLite |
 | `download_models.py` | fetches the two TTS models into `models/` |
@@ -41,14 +41,16 @@ Twilio number's Voice webhook to `<url>/api/voice` and Messaging to `<url>/api/s
 |---|---|
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | from console.twilio.com |
 | `TWILIO_VALIDATE` | `1` in Azure: only signed Twilio requests. `0` locally for smoke.sh |
-| `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, `AZURE_OPENAI_DEPLOYMENT` | optional; without them `brain.py` uses keyword matching |
+| `ANTHROPIC_API_KEY` | optional; `brain.py` then uses Claude Opus 5.5 (effort low, ~2 s). Without it: keyword matching |
 | `SQL_CONN` | optional; without it SQLite `events.db` |
 
 ## Call flow
 
 1. Greeting in Swahili: say the water point and its state. Press 2 for English.
-2. Twilio transcribes (`sw-TZ` or `en-US`). `brain.reply()` finds the point, sets `ok|broken|empty`
-   if the caller reported, and answers with the nearest working point and walking minutes.
+2. Twilio transcribes (`sw-TZ` or `en-US`). `brain.reply()` asks Claude for `{point, status, lang}`
+   (loose name matching survives speech-recognition errors), sets `ok|broken|empty` if the caller
+   reported, and answers with the nearest working point and walking minutes. SMS answers in the
+   language the message was written in.
 3. Reply spoken with MMS-TTS (`facebook/mms-tts-swh` / `-eng`), then hang up.
 
 Why speech-to-text is Twilio's and not a local model: Twilio Gather supports `sw-TZ` out of the box and

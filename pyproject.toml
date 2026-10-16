@@ -10,4 +10,5 @@ dependencies = [
     "transformers",
     "soundfile",
     "huggingface-hub",
+    "anthropic>=1.15.0",
 ]
