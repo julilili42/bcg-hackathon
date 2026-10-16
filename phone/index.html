@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reach Line Phone</title>
+<link rel="stylesheet" href="/api/phone/static/phone.css">
+<script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.5/dist/twilio.min.js"></script>
+</head>
+<body>
+<main class="phone" aria-label="Feature phone">
+  <div class="earpiece" aria-hidden="true"></div>
+  <section class="lcd" aria-live="polite">
+    <div class="lcd-top"><span id="signal">▂▄▆█</span><span id="status">starting</span><span id="clock"></span></div>
+    <pre id="screen" class="lcd-main"></pre>
+    <div class="lcd-soft"><span id="soft-left">Call</span><span id="soft-right">Clear</span></div>
+  </section>
+  <nav class="keys" aria-label="Keypad">
+    <button class="key call" id="btn-call" aria-label="Call">&#9742;</button>
+    <button class="key nav" id="btn-nav" aria-label="Menu">&#9679;</button>
+    <button class="key end" id="btn-end" aria-label="End call">&#9742;</button>
+    <button class="key" data-digit="1">1<small>&nbsp;</small></button>
+    <button class="key" data-digit="2">2<small>abc</small></button>
+    <button class="key" data-digit="3">3<small>def</small></button>
+    <button class="key" data-digit="4">4<small>ghi</small></button>
+    <button class="key" data-digit="5">5<small>jkl</small></button>
+    <button class="key" data-digit="6">6<small>mno</small></button>
+    <button class="key" data-digit="7">7<small>pqrs</small></button>
+    <button class="key" data-digit="8">8<small>tuv</small></button>
+    <button class="key" data-digit="9">9<small>wxyz</small></button>
+    <button class="key" data-digit="*">*<small>+</small></button>
+    <button class="key" data-digit="0">0<small>␣</small></button>
+    <button class="key" data-digit="#">#<small>⇧</small></button>
+  </nav>
+  <div class="brand" aria-hidden="true">REACH</div>
+</main>
+<aside class="log" aria-label="Live transcript">
+  <h2>Live</h2>
+  <ol id="log"></ol>
+</aside>
+<script src="/api/phone/static/phone.js"></script>
+</body>
+</html>

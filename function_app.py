@@ -2,8 +2,10 @@
 import os, html, json, hmac, hashlib, base64
 import azure.functions as func
 import db, brain, tts
+from phone.blueprint import bp as phone_bp
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+app.register_functions(phone_bp)  # /api/phone, the browser phone
 STT = {"sw": "sw-KE", "en": "en-US"}  # Google chirp_3 has sw-KE, no sw-TZ; same language on the phone
 STT_MODEL = "googlev2_chirp_3"  # the only Twilio speech model with Swahili
 

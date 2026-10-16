@@ -42,7 +42,8 @@ Dashboard: /api/dashboard
 | `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
 | `smoke.sh` | simulates Twilio against the local host |
 | `tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
-| `set_webhooks.sh` | points the Twilio number at any public URL (tunnel or Azure) |
+| `set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
+| `phone/` | browser phone for the pitch: real Twilio call from the laptop, feature-phone look, live transcript |
 
 ## Run locally
 
@@ -59,6 +60,24 @@ Public URL for a real phone: `./tunnel.sh` starts cloudflared and points the Twi
 Quick tunnels die after a while; "We're sorry, an application error has occurred" on the phone
 means: run `./tunnel.sh` again. Only one machine can own the webhooks at a time.
 
+## Browser phone (for the pitch)
+
+`http://localhost:7071/api/phone` shows a feature phone in the browser. The green key places a
+**real** call through Twilio's Voice SDK (WebRTC): Twilio hits the same `/api/voice` webhook as a
+phone call, the laptop microphone is the handset, the laptop speakers play the Swahili/English
+answer, and the panel next to the phone shows what was understood and answered. Digit keys send
+DTMF during the call (2 = English). Keyboard works too: digits, Enter = call, Esc = hang up.
+
+One-time setup (creates a Twilio API key and a TwiML App, writes their ids into `local.settings.json`):
+
+```bash
+uv run phone/setup.py
+./tunnel.sh            # or ./set_webhooks.sh <url>: also points the TwiML App at your host
+```
+
+Needs: microphone permission in the browser, and a network that allows WebRTC (test the venue
+Wi-Fi beforehand). Fallback is always a real phone calling the number.
+
 ## Settings (`local.settings.json` / Azure App Settings)
 
 | Key | |
@@ -67,6 +86,7 @@ means: run `./tunnel.sh` again. Only one machine can own the webhooks at a time.
 | `TWILIO_VALIDATE` | `1` in Azure: only signed Twilio requests. `0` locally for smoke.sh |
 | `ANTHROPIC_API_KEY` | optional; `brain.py` then uses Claude Opus 5.5 (effort low, ~2 s). Without it: keyword matching |
 | `SQL_CONN` | optional; without it SQLite `events.db` |
+| `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `phone/setup.py` |
 
 ## Call flow
 
