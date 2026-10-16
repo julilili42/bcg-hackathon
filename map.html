@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reach Gateway – Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html,body,#map{height:100%;margin:0}
+  .legend{background:#fff;padding:6px 10px;border-radius:4px;font:13px system-ui,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+  .legend a{display:block;margin-top:4px}
+</style></head><body>
+<div id="map"></div>
+<script>
+const COLOR={ok:'#0a7',broken:'#c22',empty:'#c80'};
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const map=L.map('map');
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+const legend=L.control({position:'bottomright'});
+legend.onAdd=()=>{const d=L.DomUtil.create('div','legend');
+  d.innerHTML=Object.entries(COLOR).map(([k,c])=>`<i style="background:${c}"></i>${k}`).join('<br>')+'<a href="/api/dashboard">dashboard</a>';return d;};
+legend.addTo(map);
+const markers={};
+async function load(){
+  const {waterpoints}=await (await fetch('/api/events')).json();
+  for(const w of waterpoints){
+    const html=`<b>${esc(w.name)}</b><br>${esc(w.village)}<br><span style="color:${COLOR[w.status]}">${w.status}</span><br><small>${esc(w.updated)}</small>`;
+    if(markers[w.id]) markers[w.id].setStyle({color:COLOR[w.status]}).setPopupContent(html);
+    else markers[w.id]=L.circleMarker([w.lat,w.lon],{radius:9,color:COLOR[w.status],weight:3,fillOpacity:.6}).bindPopup(html).addTo(map);
+  }
+  if(!map._loaded) map.fitBounds(waterpoints.map(w=>[w.lat,w.lon]),{padding:[40,40],maxZoom:14});
+}
+load(); setInterval(load,5000);
+</script></body></html>

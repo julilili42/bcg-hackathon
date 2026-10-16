@@ -36,15 +36,15 @@
   </div>
 
   <aside class="panel" aria-label="Live data">
+    <header><h1>Reach Line</h1><span class="num" id="num">+1 865 459 8142</span></header>
     <section>
-      <h2>Water points <span class="live-dot" title="live"></span></h2>
+      <h2>Water points <span class="live-dot" title="live"></span><span class="hint">live, every 2 s</span></h2>
       <table class="wp"><thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated</th></tr></thead><tbody id="wp"></tbody></table>
     </section>
     <section>
-      <h2>Calls</h2>
+      <h2>Last calls <span class="hint">Navi = call · C = hang up · 2 = English</span></h2>
       <ol id="log"></ol>
     </section>
-    <p class="hint">Navi key = call · C = hang up · 2 = English · digits send tones · ‹ › scroll</p>
   </aside>
 </div>
 <script src="/api/phone/static/phone.js"></script>

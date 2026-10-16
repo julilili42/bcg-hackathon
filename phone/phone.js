@@ -25,6 +25,7 @@ async function init() {
   if (!r.ok) { show(["Setup missing", "run phone/", "setup.py"], "!", ""); addLog("error", "Setup", await r.text()); return; }
   const data = await r.json();
   number = data.number || "+18654598142";
+  $("num").textContent = number.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 $1 $2 $3");
   device = new Twilio.Device(data.token, { codecPreferences: ["opus", "pcmu"], closeProtection: true });
   device.on("error", (e) => { show(["Error", e.code ? `code ${e.code}` : "", "see panel"], "!", "Call"); addLog("error", "Twilio", e.message); });
   device.on("tokenWillExpire", async () => device.updateToken((await (await fetch("/api/phone/token")).json()).token));
@@ -79,7 +80,7 @@ async function refresh() {
     tr.innerHTML = `<td>${esc(w.name)}</td><td>${esc(w.village)}</td><td class="status ${w.status}">${w.status}</td><td class="age">${age(String(w.updated))}</td>`;
     wp.appendChild(tr);
   }
-  const calls = d.events.filter((e) => e.channel === "voice").slice(0, 5);
+  const calls = d.events.filter((e) => e.channel === "voice").slice(0, 3);
   for (const li of [...log.children]) if (!li.classList.contains("error")) li.remove();
   if (!calls.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No calls yet."; log.appendChild(li); }
   for (const e of calls) {
@@ -91,8 +92,7 @@ async function refresh() {
 
 navi.onclick = () => (call ? null : dial());
 $("key-c").onclick = () => { if (call) hangup(); else { dialed = ""; idle(); } };
-$("key-prev").onclick = () => document.querySelector(".panel").scrollBy({ top: -160, behavior: "smooth" });
-$("key-next").onclick = () => document.querySelector(".panel").scrollBy({ top: 160, behavior: "smooth" });
+$("key-prev").onclick = $("key-next").onclick = refresh;
 for (const b of document.querySelectorAll("[data-digit]")) b.onclick = () => key(b.dataset.digit);
 document.addEventListener("keydown", (ev) => {
   if (/^[0-9*#]$/.test(ev.key)) { key(ev.key); const b = document.querySelector(`[data-digit="${ev.key}"]`); b.classList.add("pressed"); setTimeout(() => b.classList.remove("pressed"), 120); }

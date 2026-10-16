@@ -81,4 +81,13 @@ def events(req):
 
 @app.route("dashboard", methods=["GET"])
 def dashboard(req):
-    return func.HttpResponse(open(os.path.join(os.path.dirname(__file__), "dashboard.html"), encoding="utf-8").read(), mimetype="text/html")
+    return _page("dashboard.html")
+
+
+@app.route("map", methods=["GET"])
+def map_(req):
+    return _page("map.html")
+
+
+def _page(name):
+    return func.HttpResponse(open(os.path.join(os.path.dirname(__file__), name), encoding="utf-8").read(), mimetype="text/html")
