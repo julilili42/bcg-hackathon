@@ -54,3 +54,8 @@ Für Uganda später: Africa's Talking (SMS, USSD, Voice, ugandische Shortcodes).
 - `handle(text)` in `function_app.py`: Parser und Antwort.
 - `db.store(..., kind=, data=)`: strukturierte Daten mitschreiben.
 - Dashboard: Spalten ergänzen, Karte erst, wenn die Idee eine braucht.
+
+## Twilio-Credentials
+
+`TWILIO_ACCOUNT_SID` und `TWILIO_AUTH_TOKEN` in `local.settings.json` (lokal) bzw. als App Settings (Azure).
+`TWILIO_VALIDATE=1` in Azure setzen, dann werden nur signierte Twilio-Requests angenommen. Lokal `0`, sonst schlägt `smoke.sh` fehl.

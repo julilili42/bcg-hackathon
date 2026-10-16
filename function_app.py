@@ -1,6 +1,6 @@
 """Twilio-Webhooks (SMS + Voice) -> events-Tabelle -> Dashboard.
 handle() ist der einzige Ort, der sich ändert, wenn die Idee steht."""
-import json, html, os
+import json, html, os, hmac, hashlib, base64
 import azure.functions as func
 import db
 
@@ -13,12 +13,24 @@ def handle(text: str) -> str:
     return f"Received: {text}"
 
 
+def twilio_ok(req: func.HttpRequest) -> bool:
+    """Twilio-Signatur: HMAC-SHA1(token, url + sortierte POST-Params). Nur aktiv mit TWILIO_VALIDATE=1."""
+    if os.environ.get("TWILIO_VALIDATE") != "1":
+        return True
+    token = os.environ["TWILIO_AUTH_TOKEN"].encode()
+    payload = req.url + "".join(k + v for k, v in sorted(req.form.items()))
+    want = base64.b64encode(hmac.new(token, payload.encode(), hashlib.sha1).digest()).decode()
+    return hmac.compare_digest(want, req.headers.get("X-Twilio-Signature", ""))
+
+
 def twiml(inner: str) -> func.HttpResponse:
     return func.HttpResponse(f"<Response>{inner}</Response>", mimetype=XML)
 
 
 @app.route("sms", methods=["POST"])
 def sms(req: func.HttpRequest) -> func.HttpResponse:
+    if not twilio_ok(req):
+        return func.HttpResponse("forbidden", status_code=403)
     f = req.form
     db.store("sms", f.get("From", "?"), f.get("Body", ""))
     return twiml(f"<Message>{html.escape(handle(f.get('Body', '')))}</Message>")
@@ -26,6 +38,8 @@ def sms(req: func.HttpRequest) -> func.HttpResponse:
 
 @app.route("voice", methods=["POST"])
 def voice(req: func.HttpRequest) -> func.HttpResponse:
+    if not twilio_ok(req):
+        return func.HttpResponse("forbidden", status_code=403)
     f = req.form
     if f.get("Digits"):  # zweiter Request, nach Tastendruck
         db.store("voice", f.get("From", "?"), f["Digits"])
