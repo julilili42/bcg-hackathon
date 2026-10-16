@@ -78,6 +78,10 @@ uv run phone/setup.py
 Needs: microphone permission in the browser, and a network that allows WebRTC (test the venue
 Wi-Fi beforehand). Fallback is always a real phone calling the number.
 
+The Nokia 3310 chassis is adapted from [ManzDev/twitch-nokia3310](https://github.com/ManzDev/twitch-nokia3310)
+(pure CSS, Manz 2021); fonts Nokia Cellphone FC, Conthrax and Rubber Nipple Factory are free for
+personal use. Keys: Navi key = call, C = hang up or clear, ‹ › scroll the panel, digits = DTMF.
+
 ## Settings (`local.settings.json` / Azure App Settings)
 
 | Key | |

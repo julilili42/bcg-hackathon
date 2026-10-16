@@ -8,36 +8,47 @@
 <script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.5/dist/twilio.min.js"></script>
 </head>
 <body>
-<main class="phone" aria-label="Feature phone">
-  <div class="earpiece" aria-hidden="true"></div>
-  <section class="lcd" aria-live="polite">
-    <div class="lcd-top"><span id="signal">▂▄▆█</span><span id="status">starting</span><span id="clock"></span></div>
-    <pre id="screen" class="lcd-main"></pre>
-    <div class="lcd-soft"><span id="soft-left">Call</span><span id="soft-right">Clear</span></div>
-  </section>
-  <nav class="keys" aria-label="Keypad">
-    <button class="key call" id="btn-call" aria-label="Call">&#9742;</button>
-    <button class="key nav" id="btn-nav" aria-label="Menu">&#9679;</button>
-    <button class="key end" id="btn-end" aria-label="End call">&#9742;</button>
-    <button class="key" data-digit="1">1<small>&nbsp;</small></button>
-    <button class="key" data-digit="2">2<small>abc</small></button>
-    <button class="key" data-digit="3">3<small>def</small></button>
-    <button class="key" data-digit="4">4<small>ghi</small></button>
-    <button class="key" data-digit="5">5<small>jkl</small></button>
-    <button class="key" data-digit="6">6<small>mno</small></button>
-    <button class="key" data-digit="7">7<small>pqrs</small></button>
-    <button class="key" data-digit="8">8<small>tuv</small></button>
-    <button class="key" data-digit="9">9<small>wxyz</small></button>
-    <button class="key" data-digit="*">*<small>+</small></button>
-    <button class="key" data-digit="0">0<small>␣</small></button>
-    <button class="key" data-digit="#">#<small>⇧</small></button>
-  </nav>
-  <div class="brand" aria-hidden="true">REACH</div>
-</main>
-<aside class="log" aria-label="Live transcript">
-  <h2>Live</h2>
-  <ol id="log"></ol>
-</aside>
+<div class="stage">
+  <div class="scaler">
+    <div class="nokia3310" id="phone">
+      <div class="nokia-head-container">
+        <div class="speaker"><div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
+        <div class="logo">NOKIA</div>
+        <div class="screen-container" id="lcd" aria-live="polite">
+          <div class="lcd-top"><span id="lcd-signal">▮▮▮▮</span><span id="lcd-status">…</span><span id="lcd-batt">▮▮▮</span></div>
+          <div class="lcd-main" id="lcd-main"></div>
+          <div class="lcd-soft" id="lcd-soft">Call</div>
+        </div>
+        <div class="bottom-oval">
+          <button class="big button top" id="key-navi" aria-label="Call"></button>
+        </div>
+      </div>
+      <div class="bottom-buttons">
+        <button class="big button left" id="key-c" aria-label="End or clear"><span>C</span></button>
+        <button class="big button right" aria-label="Scroll"><span id="key-prev">&#8249;</span><span id="key-next">&#8250;</span></button>
+      </div>
+      <div class="keyboard" id="keyboard">
+        <div class="button-key-container"><button class="button-key left" data-digit="1"><span class="special">1</span><span class="minitext compact">o_o</span></button></div>
+        <div class="button-key-container"><button class="button-key middle" data-digit="2"><span class="special">2</span><span class="minitext">abc</span></button></div>
+        <div class="button-key-container invert"><button class="button-key right" data-digit="3"><span class="special">3</span><span class="minitext">def</span></button></div>
+        <div class="button-key-container"><button class="button-key left" data-digit="4"><span class="special">4</span><span class="minitext">ghi</span></button></div>
+        <div class="button-key-container"><button class="button-key middle" data-digit="5"><span class="special">5</span><span class="minitext">jkl</span></button></div>
+        <div class="button-key-container invert"><button class="button-key right" data-digit="6"><span class="special">6</span><span class="minitext">mno</span></button></div>
+        <div class="button-key-container"><button class="button-key left" data-digit="7"><span class="special">7</span><span class="minitext">pqrs</span></button></div>
+        <div class="button-key-container"><button class="button-key middle" data-digit="8"><span class="special">8</span><span class="minitext">tuv</span></button></div>
+        <div class="button-key-container invert"><button class="button-key right" data-digit="9"><span class="special">9</span><span class="minitext">wxyz</span></button></div>
+        <div class="button-key-container"><button class="button-key left" data-digit="*"><span class="special">*</span><span class="minitext">+</span></button></div>
+        <div class="button-key-container"><button class="button-key middle" data-digit="0"><span class="special">0</span><span class="minitext rotate">[</span></button></div>
+        <div class="button-key-container invert"><button class="button-key right" data-digit="#"><span class="special">#</span><span class="minitext home"></span></button></div>
+      </div>
+    </div>
+  </div>
+  <aside class="log" aria-label="Live transcript">
+    <h2>Live</h2>
+    <p class="hint">Navi key = call · C = hang up · 2 = English · digits send tones</p>
+    <ol id="log"></ol>
+  </aside>
+</div>
 <script src="/api/phone/static/phone.js"></script>
 </body>
 </html>

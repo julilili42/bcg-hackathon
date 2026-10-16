@@ -1,52 +1,138 @@
+/* Nokia 3310 chassis adapted from ManzDev/twitch-nokia3310 (Manz, 2021, pure CSS).
+   Fonts: Nokia Cellphone FC (Zeh Fernando), Conthrax (Typodermic), Rubber Nipple Factory - free for personal use.
+   Our additions: LCD layout, clickable keys, side panel, scaling. */
+@font-face { font-family: "Conthrax SB"; src: url(/api/phone/static/conthrax-sb.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Nokia Cellphone FC"; src: url(/api/phone/static/nokia-cellphone-fc.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Rubber Nipple Factory"; src: url(/api/phone/static/rubber-nipple-factory.woff2) format("woff2"); font-display: swap; }
+
 :root {
-  --bg: #15181c; --body: #2b2f36; --body-edge: #1a1d22; --key: #3a3f48; --key-text: #e8eaee;
-  --lcd: #9db58a; --lcd-dark: #1f2a1a; --lcd-dim: #4e6342; --call: #2f9e5b; --end: #c7413a;
-  --log-bg: #1c2026; --log-text: #d7dbe2; --log-muted: #8a919c;
+  --nokia-bgcolor: #3f3d46;
+  --nokia-radius-shape: 16% 16% 14% 14% / 31% 31% 54% 54%;
+  --nokia-logo-font: "Conthrax SB";
+  --nokia-phone-font: "Nokia Cellphone FC";
+  --nokia-number-font: "Rubber Nipple Factory";
+  --lcd: #78a47f; --lcd-on: #8fc995; --lcd-ink: #22341f;
+  --zoom: 2.4;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--log-text); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-body { display: flex; gap: 32px; justify-content: center; align-items: flex-start; padding: 24px 16px; min-height: 100vh; flex-wrap: wrap; }
+html, body { margin: 0; background: #16171b; color: #d7dbe2; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.stage { display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap; padding: 32px 16px; }
+.scaler { width: calc(170px * var(--zoom)); height: calc(360px * var(--zoom)); }
+.nokia3310 { transform: scale(var(--zoom)); transform-origin: top left; }
+button { all: unset; cursor: pointer; }
+@media (max-width: 720px) { :root { --zoom: 1.8; } }
 
-.phone {
-  width: 300px; padding: 26px 22px 22px; border-radius: 40px 40px 56px 56px;
-  background: linear-gradient(180deg, var(--body), var(--body-edge));
-  box-shadow: 0 30px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08), inset 0 -2px 0 rgba(0,0,0,.5);
-  display: flex; flex-direction: column; gap: 16px; user-select: none;
+.nokia3310 {
+  width: 170px; height: 360px; display: flex; flex-direction: column; align-items: center;
+  background: var(--nokia-bgcolor);
+  background-image: linear-gradient(to right, #0005 15%, transparent), linear-gradient(111deg, #2f2b31, #7d8299);
+  box-shadow: 0 0 8px 4px #0006, 0 0 8px 4px #0005 inset;
+  border-radius: var(--nokia-radius-shape); position: relative; user-select: none;
+
+  & .nokia-head-container {
+    width: 90%; height: 61%; border-radius: 25% 25% 60% 60% / 40% 40% 50% 50%; transform: translateY(5px);
+    display: flex; flex-direction: column; justify-content: flex-start; align-items: center; overflow: hidden;
+    box-shadow: 0 6px 0 #ddd inset, -8px -16px 0 #ddd inset, -12px -16px 0 #aaa inset, 8px -16px 0 #ddd inset, 12px -16px 0 #eee inset;
+
+    & .speaker {
+      box-shadow: 6px 0 8px #aaa3 inset, -2px 0 6px #000a inset; margin-top: 8px; margin-bottom: 3px; border-radius: 50%;
+      width: 9px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: space-around; padding: 2px 0;
+      & .hole { background: #000; width: 4px; height: 2px; border-radius: 50%; box-shadow: 0 0 2px #0009; }
+    }
+    & .logo {
+      display: flex; justify-content: center; align-items: center; width: 55px; height: 15px; font-family: var(--nokia-logo-font);
+      font-size: 12px; color: #dfdfda; background: #111; margin-bottom: 8px; border-left: 1px solid #444; border-right: 1px solid #444;
+    }
+    & .screen-container {
+      background: var(--lcd); width: 106px; height: 78px; border-radius: 8px / 10px 10px 35px 35px;
+      border: 1px solid #000a; border-top: 2px solid #000a;
+      box-shadow: 0 0 8px #000 inset, -4px 0 2px #fff8, 4px 0 2px #2228;
+      font-family: var(--nokia-phone-font); color: var(--lcd-ink); transition: background .6s, filter .6s;
+      display: flex; flex-direction: column; padding: 4px 6px 5px; font-size: 7px; line-height: 1.25;
+      &.on { background: var(--lcd-on); filter: drop-shadow(0 0 4px #8fc995aa); }
+      & .lcd-top { display: flex; justify-content: space-between; font-size: 5px; letter-spacing: .5px; }
+      & .lcd-main { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1px; overflow: hidden; white-space: nowrap; }
+      & .lcd-main .big { font-size: 10px; letter-spacing: .3px; }
+      & .lcd-main .blink { animation: blink 1s steps(2) infinite; }
+      & .lcd-soft { text-align: center; font-size: 7px; border-top: 1px solid #2e4434; padding-top: 2px; }
+    }
+    & .bottom-oval {
+      margin-top: auto; width: 100%; height: 50px; background: #ddd; border-radius: 60%; display: flex; flex-direction: column; align-items: center;
+      & .big.button.top {
+        background: #ddd; background-image: linear-gradient(110deg, #ddd, #aaa); border: 2px solid #000a; width: 75px; height: 20px;
+        border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%; transform: translateY(-4px); display: flex; justify-content: center;
+        &:active { transform: translateY(-2px); background-image: linear-gradient(110deg, #ccc, #999); }
+        &::before { content: ""; display: block; width: 30px; height: 4px; border: 4px solid #2992a1; border-radius: 50%; transform: translateY(1px); clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%); }
+        &.live::before { border-color: #2fbf5b; }
+      }
+    }
+  }
+  @keyframes blink { to { visibility: hidden; } }
+
+  & .bottom-buttons {
+    width: 80%; display: flex; justify-content: space-between; position: absolute;
+    & .big.button { position: relative;
+      &.left {
+        background: #ccc; background-image: linear-gradient(to bottom, #ddd 55%, #aaa); border: 2px solid #000a; width: 40px; height: 20px;
+        border-radius: 31px 11px 11px 21px / 22px 20px 20px; transform: translate(5px, 189px) rotate(36deg); overflow: hidden;
+        &:active { background-image: linear-gradient(to bottom, #ccc 55%, #999); }
+        & span { font-family: var(--nokia-number-font); font-size: 12px; display: block; transform: rotate(-35deg) translate(10px, 3px); color: #111; }
+        &::after { content: ""; background-color: #eee; height: 100%; width: 100%; border-radius: 50%; position: absolute; transform: translateY(-100%); z-index: -1; }
+      }
+      &.right {
+        background: #ddd; background-image: linear-gradient(to bottom, #ddd 55%, #aaa); border: 2px solid #000a; width: 55px; height: 25px;
+        border-radius: 7px 48px 36px 30px / 5px 16px 11px 15px; transform: translateY(189px) rotate(-34deg) skew(-12deg);
+        display: flex; justify-content: space-around; overflow: hidden;
+        &::after { content: ""; background-color: #eee; height: 100%; width: 100%; border-radius: 50%; position: absolute; transform: translateY(-50%); z-index: -1; }
+        & span { font-family: system-ui, sans-serif; font-weight: 700; font-size: 13px; display: block; transform: translate(0, 3px); color: #111; padding: 0 7px; }
+      }
+    }
+  }
+
+  & .keyboard {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 6px; width: 85%; height: 110px; margin-top: 8px;
+    & .button-key-container { font-family: var(--nokia-number-font); font-weight: bold; font-size: 14px;
+      &.invert .button-key .special { order: 2; }
+      &:nth-child(1) { transform: translate(-1px, -5px); } &:nth-child(4) { transform: translate(2px, -2px); }
+      &:nth-child(7) { transform: translate(5px, 1px); } &:nth-child(10) { transform: translate(8px, 4px); }
+      &:nth-child(2) { transform: translate(1px, 0); } &:nth-child(5) { transform: translate(1px, 3px); }
+      &:nth-child(8) { transform: translate(1px, 6px); } &:nth-child(11) { transform: translate(1px, 9px); }
+      &:nth-child(3) { transform: translate(2px, -5px); } &:nth-child(6) { transform: translate(-1px, -2px); }
+      &:nth-child(9) { transform: translate(-4px, 1px); } &:nth-child(12) { transform: translate(-7px, 4px); }
+      & .button-key {
+        display: flex; justify-content: center; position: relative; z-index: 0; width: 100%; padding: 0 4px;
+        &:active, &.pressed { transform: translateY(1px); &.middle { transform: translateY(6px); } &::before { box-shadow: 0 2px 0 #0004; } }
+        &.left .minitext { transform: translate(0, 3px); }
+        &.left::before { --rotation: 15deg; border-radius: 33% 67% 43% 36% / 58% 72% 28% 42%; }
+        &.middle { transform: translateY(5px); }
+        &.middle::before { border-radius: 48% 52% 50% 50% / 40% 40% 60% 60%; }
+        &.right::before { --rotation: -15deg; border-radius: 67% 33% 36% 43% / 72% 58% 42% 28%; }
+        &::before {
+          --y: -5px; content: ""; display: block; width: 37px; height: 20px; position: absolute; background: #dedee0;
+          background-image: linear-gradient(#dedee0, #aaa); border-radius: 50%; border: 2px solid #000c; box-shadow: 0 0 3px #0004; z-index: -1;
+          transform: translateY(var(--y, 0)) rotate(var(--rotation, 0));
+        }
+        & span { font-family: var(--nokia-phone-font); font-size: 8px; font-weight: lighter; color: #111;
+          &.special { font-weight: bolder; font-size: 10px; color: #000; }
+          &.minitext.rotate { display: block; transform: translateX(4px) rotate(-90deg); }
+          &.minitext { transform: translateY(4px); }
+        }
+      }
+    }
+    & .home { border: 1px solid #000; border-top: 0; width: 4px; height: 4px; margin-right: 2px; margin-top: 2px; display: block;
+      &::before, &::after { content: ""; display: block; width: 1px; height: 5px; border-left: 1px solid #000; position: absolute; transform: translate(0, -3px) rotate(45deg); }
+      &::after { transform: translate(3px, -4px) rotate(-45deg); }
+    }
+    & .compact { letter-spacing: -4px; }
+  }
 }
-.earpiece { width: 60px; height: 6px; margin: 0 auto; border-radius: 3px; background: #0d0f12; box-shadow: inset 0 1px 2px #000; }
 
-.lcd {
-  background: var(--lcd); color: var(--lcd-dark); border-radius: 6px; padding: 8px 10px;
-  box-shadow: inset 0 0 0 3px #0d0f12, inset 0 0 24px rgba(0,0,0,.25);
-  font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.35; min-height: 190px;
-  display: flex; flex-direction: column;
-}
-.lcd-top { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .02em; border-bottom: 1px solid var(--lcd-dim); padding-bottom: 3px; }
-.lcd-main { flex: 1; margin: 6px 0; white-space: pre-wrap; word-break: break-word; font: inherit; overflow: hidden; }
-.lcd-main .big { font-size: 20px; letter-spacing: .08em; }
-.lcd-main .dim { color: var(--lcd-dim); }
-.lcd-soft { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; border-top: 1px solid var(--lcd-dim); padding-top: 3px; }
-
-.keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.key {
-  height: 44px; border: 0; border-radius: 10px; background: var(--key); color: var(--key-text);
-  font: 600 18px/1 system-ui, sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  box-shadow: 0 3px 0 #202329, inset 0 1px 0 rgba(255,255,255,.08); transition: transform .05s, box-shadow .05s;
-}
-.key small { font-size: 9px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
-.key:active, .key.pressed { transform: translateY(2px); box-shadow: 0 1px 0 #202329; }
-.key.call { background: var(--call); } .key.end { background: var(--end); transform: scaleX(-1); }
-.key.end:active { transform: scaleX(-1) translateY(2px); }
-.key.nav { background: #252830; border-radius: 50%; width: 44px; margin: 0 auto; font-size: 10px; }
-.key:disabled { opacity: .45; cursor: default; }
-.brand { text-align: center; font-size: 11px; letter-spacing: .4em; color: #6b717c; margin-top: 2px; }
-
-.log { width: min(420px, 100%); background: var(--log-bg); border-radius: 16px; padding: 16px 20px; max-height: 80vh; overflow: auto; }
-.log h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--log-muted); }
-.log ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.log li { border-left: 3px solid var(--call); padding: 4px 0 4px 12px; }
-.log li .who { font-size: 11px; color: var(--log-muted); text-transform: uppercase; letter-spacing: .1em; }
-.log li .you { color: #fff; } .log li .line { color: #9fd3b0; }
-.log li.empty { border-color: var(--log-muted); color: var(--log-muted); }
-
-@media (max-width: 720px) { body { gap: 20px; } .log { max-height: none; } }
+.log { width: min(440px, 100%); background: #1e2126; border-radius: 16px; padding: 18px 22px; max-height: calc(360px * var(--zoom)); overflow: auto; }
+.log h2 { margin: 0 0 4px; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: #8a919c; }
+.log .hint { margin: 0 0 14px; font-size: 12px; color: #8a919c; }
+.log ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.log li { border-left: 3px solid #2fbf5b; padding: 4px 0 4px 12px; }
+.log li .who { font-size: 11px; color: #8a919c; text-transform: uppercase; letter-spacing: .1em; }
+.log li .you { color: #fff; font-size: 16px; } .log li .line { color: #9fd3b0; font-size: 16px; }
+.log li.empty { border-color: #8a919c; color: #8a919c; }
+.log li.error { border-color: #c7413a; color: #f0b0ab; }
