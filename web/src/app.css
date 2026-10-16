@@ -93,7 +93,7 @@ ol.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction:
 /* a call just changed a row: it glows, everything else steps back */
 table.wp.focus tr:not(.hot) td { opacity: .32; transition: opacity .6s; }
 table.wp tr.hot td { opacity: 1; background: rgba(255,255,255,.06); }
-table.wp tr.hot td:first-child { box-shadow: inset 3px 0 0 #fff; font-weight: 600; }
+table.wp tr.hot td:first-child { font-weight: 600; }
 table.wp tr.hot td.status { text-shadow: 0 0 10px currentColor; }
 /* last calls, collapsed by default */
 details.calls { background: var(--panel); border-radius: 16px; padding: 16px 20px; min-height: 0; overflow: hidden; }
