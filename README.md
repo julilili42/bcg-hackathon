@@ -20,6 +20,7 @@ Dashboard: /api/dashboard
 | `download_models.py` | fetches the two TTS models into `models/` |
 | `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
 | `smoke.sh` | simulates Twilio against the local host |
+| `set_webhooks.sh` | points the Twilio number at your tunnel or Azure URL |
 
 ## Run locally
 
@@ -32,8 +33,9 @@ func start                       # http://localhost:7071  (uses .venv)
 ./smoke.sh                       # second terminal
 ```
 
-Public URL for a real phone: `cloudflared tunnel --url http://localhost:7071`, then set the
-Twilio number's Voice webhook to `<url>/api/voice` and Messaging to `<url>/api/sms` (POST).
+Public URL for a real phone: `cloudflared tunnel --url http://localhost:7071`, then
+`./set_webhooks.sh https://<tunnel-host>`. Only one machine can own the webhooks at a time;
+whoever runs the tunnel runs the demo.
 
 ## Settings (`local.settings.json` / Azure App Settings)
 
