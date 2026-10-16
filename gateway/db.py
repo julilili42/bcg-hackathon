@@ -3,20 +3,20 @@ ponytail: SQLite exists so `func start` works without Azure; set SQL_CONN at the
 import os, sqlite3, csv, math
 
 CONN = os.environ.get("SQL_CONN", "")
-HERE = os.path.dirname(__file__)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _connect():
     if CONN:
         import pyodbc
         return pyodbc.connect(CONN)
-    c = sqlite3.connect(os.path.join(HERE, "events.db"))
+    c = sqlite3.connect(os.path.join(ROOT, "db", "events.db"))
     c.execute("""CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT)""")
     c.execute("""CREATE TABLE IF NOT EXISTS waterpoints (id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT, village TEXT, lat REAL, lon REAL, status TEXT DEFAULT 'ok', updated TEXT DEFAULT CURRENT_TIMESTAMP)""")
     if not c.execute("SELECT 1 FROM waterpoints LIMIT 1").fetchone():
-        with open(os.path.join(HERE, "waterpoints.csv")) as f:
+        with open(os.path.join(ROOT, "data", "waterpoints.csv")) as f:
             c.executemany("INSERT INTO waterpoints(name,village,lat,lon,status) VALUES (?,?,?,?,?)",
                           [(r["name"], r["village"], float(r["lat"]), float(r["lon"]), r["status"]) for r in csv.DictReader(f)])
     return c

@@ -1,11 +1,11 @@
-"""Twilio webhooks -> brain -> TwiML.  Voice: greeting, speech in (sw-TZ or en-US), reply as audio.  SMS: text in, text out."""
-import os, html, json, hmac, hashlib, base64
+"""Twilio webhooks -> brain -> TwiML.  Voice: greeting, speech in (sw-KE or en-US), reply as audio.  SMS: text in, text out.
+Also: the JSON feed and the web app (React, built into web/dist)."""
+import os, html, json, hmac, hashlib, base64, mimetypes
 import azure.functions as func
-import db, brain, tts
-from phone.blueprint import bp as phone_bp
+from gateway import db, brain, tts, phone
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
-app.register_functions(phone_bp)  # /api/phone, the browser phone
+DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "dist")
 STT = {"sw": "sw-KE", "en": "en-US"}  # Google chirp_3 has sw-KE, no sw-TZ; same language on the phone
 STT_MODEL = "googlev2_chirp_3"  # the only Twilio speech model with Swahili
 
@@ -29,7 +29,7 @@ def gather(req, prompt, lang):
 
 
 def signed(req):
-    """Twilio request signature. Only enforced with TWILIO_VALIDATE=1 (off locally so smoke.sh works)."""
+    """Twilio request signature. Only enforced with TWILIO_VALIDATE=1 (off locally so scripts/smoke.sh works)."""
     if os.environ.get("TWILIO_VALIDATE") != "1":
         return True
     payload = req.url + "".join(k + v for k, v in sorted(req.form.items()))
@@ -79,15 +79,41 @@ def events(req):
     return func.HttpResponse(json.dumps({"events": db.events(), "waterpoints": db.waterpoints()}), mimetype="application/json")
 
 
+@app.route("phone/token", methods=["GET"])
+def phone_token(req):
+    if not os.environ.get("TWILIO_API_KEY"):
+        return func.HttpResponse("Browser phone not set up: run `uv run scripts/phone_setup.py`", status_code=503)
+    identity = req.params.get("identity", "demo")[:32]
+    return func.HttpResponse(json.dumps({"token": phone.access_token(identity), "number": os.environ.get("TWILIO_NUMBER", "")}),
+                             mimetype="application/json")
+
+
+# --- web app: one React build (web/dist), the page is picked from the URL's last segment (web/src/main.tsx)
+@app.route("phone", methods=["GET"])
+def phone_page(req):
+    return _index()
+
+
 @app.route("dashboard", methods=["GET"])
 def dashboard(req):
-    return _page("dashboard.html")
+    return _index()
 
 
 @app.route("map", methods=["GET"])
 def map_(req):
-    return _page("map.html")
+    return _index()
 
 
-def _page(name):
-    return func.HttpResponse(open(os.path.join(os.path.dirname(__file__), name), encoding="utf-8").read(), mimetype="text/html")
+@app.route("static/{*path}", methods=["GET"])
+def static(req):
+    path = os.path.normpath(os.path.join(DIST, req.route_params["path"]))
+    if not path.startswith(DIST + os.sep) or not os.path.isfile(path):
+        return func.HttpResponse(status_code=404)
+    return func.HttpResponse(open(path, "rb").read(), mimetype=mimetypes.guess_type(path)[0] or "application/octet-stream")
+
+
+def _index():
+    try:
+        return func.HttpResponse(open(os.path.join(DIST, "index.html"), encoding="utf-8").read(), mimetype="text/html")
+    except FileNotFoundError:
+        return func.HttpResponse("web app not built: cd web && npm install && npm run build", status_code=503)

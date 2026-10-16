@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Public URL for the local host + Twilio webhooks in one go. Re-run whenever the phone says "application error".
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 LOG=$(mktemp)
 cloudflared tunnel --url http://localhost:7071 > "$LOG" 2>&1 &
 for i in $(seq 1 40); do
@@ -9,5 +9,5 @@ for i in $(seq 1 40); do
   sleep 1
 done
 [ -z "$URL" ] && { echo "tunnel failed:"; tail -5 "$LOG"; exit 1; }
-./set_webhooks.sh "$URL"
+scripts/set_webhooks.sh "$URL"
 echo "tunnel up, Ctrl-C to stop"; wait

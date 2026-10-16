@@ -1,15 +1,15 @@
-"""Text -> wav via Meta MMS-TTS (runs on CPU, ~1 s per sentence). Models come from download_models.py.
+"""Text -> wav via Meta MMS-TTS (runs on CPU, ~1 s per sentence). Models come from scripts/download_models.py.
 Returns None when models are missing, the caller then falls back to Twilio <Say>."""
 import os, hashlib, functools
 MODELS = {"sw": "facebook/mms-tts-swh", "en": "facebook/mms-tts-eng"}
-HERE = os.path.dirname(__file__)
-AUDIO = os.path.join(HERE, "audio")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AUDIO = os.path.join(ROOT, "audio")
 
 
 @functools.lru_cache(maxsize=None)
 def _load(lang):
     from transformers import VitsModel, AutoTokenizer
-    path = os.path.join(HERE, "models", lang)
+    path = os.path.join(ROOT, "models", lang)
     if not os.path.isdir(path):
         return None
     return VitsModel.from_pretrained(path), AutoTokenizer.from_pretrained(path)
@@ -34,4 +34,4 @@ def speak(text, lang):
 
 if __name__ == "__main__":
     for lang, text in [("en", "The nearest working water point is Kanisa."), ("sw", "Kisima cha karibu kinachofanya kazi ni Kanisa.")]:
-        print(lang, speak(text, lang) or "model missing, run download_models.py")
+        print(lang, speak(text, lang) or "model missing, run scripts/download_models.py")

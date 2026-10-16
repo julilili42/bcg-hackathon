@@ -1,7 +1,7 @@
 """Understand one utterance, update the water point table, produce the reply text.
 Claude when ANTHROPIC_API_KEY is set, keyword matching otherwise. Both return the same dict."""
 import os, json
-import db
+from . import db
 
 T = {  # reply templates. ponytail: Swahili written by non-native, have a Tanzanian read it once.
     "sw": {"greet": "Karibu. Sema jina la kisima na hali yake. Kwa Kiingereza, bonyeza mbili.",
@@ -70,13 +70,14 @@ def reply(text, lang=None):
         out = t["status"].format(p=p["name"], s=t["s"][p["status"]])
     if p["status"] != "ok":
         ok = [(db.walk_minutes(p, q), q) for q in points if q["status"] == "ok" and q["id"] != p["id"]]
-        out += t["nearest"].format(q=min(ok)[1]["name"], m=min(ok)[0]) if ok else t["none"]
+        m, q = min(ok, key=lambda x: x[0]) if ok else (None, None)  # key: ties must not compare the dicts
+        out += t["nearest"].format(q=q["name"], m=m) if ok else t["none"]
     return out, lang
 
 
 if __name__ == "__main__":  # self-check, keyword path
     os.environ.pop("ANTHROPIC_API_KEY", None)
-    assert "Kanisa" in reply("the Shule well is broken", "en")[0]
-    assert reply("Shule imeharibika") == (reply("Shule imeharibika")[0], "sw")
+    assert "Mama Nasa" in reply("the Zahanati well is broken", "en")[0]
+    assert reply("Zahanati imeharibika") == (reply("Zahanati imeharibika")[0], "sw")
     assert reply("blah", "en")[0] == T["en"]["unknown"]
     print("brain ok")

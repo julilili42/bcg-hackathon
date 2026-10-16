@@ -1,6 +1,6 @@
 """One-time Twilio setup for the browser phone: an API key (signs access tokens) and a TwiML App
 (tells Twilio which webhook to hit when the browser calls). Writes the ids into local.settings.json.
-Run: uv run phone/setup.py"""
+Run: uv run scripts/phone_setup.py"""
 import json, os, base64, urllib.request, urllib.parse
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

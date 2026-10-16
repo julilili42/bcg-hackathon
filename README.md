@@ -12,53 +12,59 @@ Only one machine can receive the calls at a time: whoever runs the tunnel runs t
 ```bash
 git clone <repo> && cd reach-gateway
 uv sync                                   # Python 3.12 venv + deps
-uv run download_models.py                 # the two TTS models, ~300 MB, once
+uv run scripts/download_models.py         # the two TTS models, ~300 MB, once
+(cd web && npm install && npm run build)  # the React UI (phone, dashboard, map) -> web/dist
 cp local.settings.json.example local.settings.json
 #   -> fill in TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and ANTHROPIC_API_KEY (ask Julian, never commit them)
 uv run func start                         # local host on :7071, needs Azure Functions Core Tools
-./tunnel.sh                               # second terminal: public URL + Twilio now sends calls/SMS to YOUR machine
+scripts/tunnel.sh                         # second terminal: public URL + Twilio now sends calls/SMS to YOUR machine
 ```
 
 Then call or text +1 865 459 8142. Dashboard: http://localhost:7071/api/dashboard
 
-Tools you need once: `uv` (brew install uv), `cloudflared` (brew install cloudflared),
+Tools you need once: `uv` (brew install uv), `node` (brew install node), `cloudflared` (brew install cloudflared),
 Azure Functions Core Tools (`npm i -g azure-functions-core-tools@4`).
-No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `set_webhooks.sh`.
+No Twilio SDK, no Azure account: Twilio is driven by plain webhooks + `scripts/set_webhooks.sh`.
 
 ```
-Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-TZ / en-US)
-                        /api/voice/handle ──▶ brain.py ──▶ SQL (waterpoints, events)
+Call/SMS ──▶ Twilio ──▶ /api/voice  (greeting, speech-to-text sw-KE / en-US)
+                        /api/voice/handle ──▶ gateway/brain.py ──▶ SQL (waterpoints, events)
                         ◀── audio reply (local MMS-TTS) or text ◀──┘
-Dashboard: /api/dashboard
+Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 ```
 
-| File | Does |
+| Path | Does |
 |---|---|
-| `function_app.py` | Twilio webhooks, TwiML, routes |
-| `brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
-| `tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
-| `db.py` | `events` + `waterpoints`, Azure SQL or SQLite |
-| `download_models.py` | fetches the two TTS models into `models/` |
-| `waterpoints.csv` | seed data (fictional names around Kibaha, TZ) |
-| `smoke.sh` | simulates Twilio against the local host |
-| `tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
-| `set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
-| `phone/` | browser phone for the pitch: real Twilio call from the laptop, photo of a Nokia 3310, live database beside it |
+| `function_app.py` | Azure Functions entry: Twilio webhooks + TwiML, `/api/events` JSON, serves `web/dist` |
+| `gateway/brain.py` | understand (Claude or keywords) → update status → reply text, sw/en templates |
+| `gateway/tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
+| `gateway/db.py` | `events` + `waterpoints`, Azure SQL or SQLite (`db/events.db`) |
+| `gateway/phone.py` | Twilio Voice access tokens for the browser phone |
+| `db/schema.sql` | Azure SQL schema (SQLite is created on the fly with the same shape) |
+| `data/waterpoints.csv` | seed data: 15 real water points in Soga ward, Kibaha (names, coordinates, status from the Ministry of Water / Taarifa water point mapping 2011-2013) |
+| `web/` | React + TypeScript (Vite): `src/Phone.tsx` (Nokia 3310 photo, real Twilio call, live database), `src/Dashboard.tsx`, `src/Map.tsx`. `npm run dev` rebuilds on save |
+| `scripts/smoke.sh` | simulates Twilio against the local host |
+| `scripts/tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
+| `scripts/set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
+| `scripts/download_models.py` | fetches the two TTS models into `models/` |
+| `scripts/phone_setup.py` | one-time Twilio API key + TwiML App for the browser phone |
+| `scripts/measure_phone.py` | measures LCD and key hit areas on the Nokia photo → `web/src/hits.ts` |
 
 ## Run locally
 
 ```bash
-uv sync                          # Python 3.12 venv + deps
-uv run download_models.py        # ~300 MB, once. Without it: Twilio's own voice (English only)
-uv run brain.py && uv run tts.py # self-checks
+uv sync                                  # Python 3.12 venv + deps
+uv run scripts/download_models.py        # ~300 MB, once. Without it: Twilio's own voice (English only)
+uv run -m gateway.brain && uv run -m gateway.tts   # self-checks
+(cd web && npm install && npm run build) # React UI -> web/dist (npm run dev = rebuild on save)
 cp local.settings.json.example local.settings.json   # fill in Twilio values
-func start                       # http://localhost:7071  (uses .venv)
-./smoke.sh                       # second terminal
+func start                               # http://localhost:7071  (uses .venv)
+scripts/smoke.sh                         # second terminal
 ```
 
-Public URL for a real phone: `./tunnel.sh` starts cloudflared and points the Twilio number at it.
+Public URL for a real phone: `scripts/tunnel.sh` starts cloudflared and points the Twilio number at it.
 Quick tunnels die after a while; "We're sorry, an application error has occurred" on the phone
-means: run `./tunnel.sh` again. Only one machine can own the webhooks at a time.
+means: run `scripts/tunnel.sh` again. Only one machine can own the webhooks at a time.
 
 ## Browser phone (for the pitch)
 
@@ -71,9 +77,12 @@ DTMF during the call (2 = English). Keyboard works too: digits, Enter = call, Es
 One-time setup (creates a Twilio API key and a TwiML App, writes their ids into `local.settings.json`):
 
 ```bash
-uv run phone/setup.py
-./tunnel.sh            # or ./set_webhooks.sh <url>: also points the TwiML App at your host
+uv run scripts/phone_setup.py
+scripts/tunnel.sh      # or scripts/set_webhooks.sh <url>: also points the TwiML App at your host
 ```
+
+`?debug=1` on the phone page tints the key hit areas; they come from `scripts/measure_phone.py`
+(`uv run --with pillow scripts/measure_phone.py`, then rebuild `web/`).
 
 Needs: microphone permission in the browser, and a network that allows WebRTC (test the venue
 Wi-Fi beforehand). Fallback is always a real phone calling the number.
@@ -93,7 +102,7 @@ water points with status and age, plus the last calls, refreshed every 2 s.
 | `TWILIO_VALIDATE` | `1` in Azure: only signed Twilio requests. `0` locally for smoke.sh |
 | `ANTHROPIC_API_KEY` | optional; `brain.py` then uses Claude Opus 5.5 (effort low, ~2 s). Without it: keyword matching |
 | `SQL_CONN` | optional; without it SQLite `events.db` |
-| `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `phone/setup.py` |
+| `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `scripts/phone_setup.py` |
 
 ## Call flow
 

@@ -1,7 +1,9 @@
 .venv/
 __pycache__/
 local.settings.json
-events.db
+db/events.db
 audio/
 models/
 .python_packages/
+web/node_modules/
+web/dist/
