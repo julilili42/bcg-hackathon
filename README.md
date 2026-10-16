@@ -43,7 +43,7 @@ Dashboard: /api/dashboard
 | `smoke.sh` | simulates Twilio against the local host |
 | `tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
 | `set_webhooks.sh` | points the Twilio number and the browser phone at any public URL (tunnel or Azure) |
-| `phone/` | browser phone for the pitch: real Twilio call from the laptop, feature-phone look, live transcript |
+| `phone/` | browser phone for the pitch: real Twilio call from the laptop, photo of a Nokia 3310, live database beside it |
 
 ## Run locally
 
@@ -78,9 +78,12 @@ uv run phone/setup.py
 Needs: microphone permission in the browser, and a network that allows WebRTC (test the venue
 Wi-Fi beforehand). Fallback is always a real phone calling the number.
 
-The Nokia 3310 chassis is adapted from [ManzDev/twitch-nokia3310](https://github.com/ManzDev/twitch-nokia3310)
-(pure CSS, Manz 2021); fonts Nokia Cellphone FC, Conthrax and Rubber Nipple Factory are free for
-personal use. Keys: Navi key = call, C = hang up or clear, ‹ › scroll the panel, digits = DTMF.
+The chassis is a photo of a real Nokia 3310:
+[Nokia 3310 Blue R7309170 (retouch).png](https://commons.wikimedia.org/wiki/File:Nokia_3310_Blue_R7309170_(retouch).png)
+from Wikimedia Commons, Free Art License. The LCD and the key hit areas are HTML positioned in
+percent of the photo (measured by colour detection, see git history for the script). LCD font:
+Nokia Cellphone FC (Zeh Fernando, free for personal use). The right side is the live database:
+water points with status and age, plus the last calls, refreshed every 2 s.
 
 ## Settings (`local.settings.json` / Azure App Settings)
 

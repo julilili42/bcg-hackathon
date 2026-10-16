@@ -1,11 +1,12 @@
-// Nokia 3310 in the browser, real call through Twilio Voice SDK -> TwiML App -> /api/voice.
-// Navi key = call, C = hang up / clear, digits = DTMF during a call (2 = English menu).
+// Real Nokia 3310 photo as chassis; a real call through Twilio Voice SDK -> TwiML App -> /api/voice.
+// Navi key = call, C = hang up / clear, digits = DTMF during a call (2 = English). Right side: the live database.
 const $ = (id) => document.getElementById(id);
-const lcd = $("lcd"), main = $("lcd-main"), soft = $("lcd-soft"), stat = $("lcd-status"), navi = $("key-navi"), log = $("log");
+const lcd = $("lcd"), main = $("lcd-main"), soft = $("lcd-soft"), stat = $("lcd-status"), navi = $("key-navi"), log = $("log"), wp = $("wp");
 
-let device = null, call = null, number = "", dialed = "", startedAt = 0, timers = {};
+let device = null, call = null, number = "", dialed = "", startedAt = 0, timers = {}, lastStatus = {};
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 const pretty = (n) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
 function show(lines, status, softkey) {
   main.innerHTML = "";
@@ -17,11 +18,7 @@ function show(lines, status, softkey) {
   if (status !== undefined) stat.textContent = status;
   if (softkey !== undefined) soft.textContent = softkey;
 }
-
-function idle(lines) {
-  navi.classList.remove("live");
-  show(lines || [["big", dialed || pretty(number)], "Reach Line", "Navi = call"], "", "Call");
-}
+const idle = (lines) => { navi.classList.remove("live"); show(lines || [["big", dialed || pretty(number)], "Reach Line", "Navi = call"], "", "Call"); };
 
 async function init() {
   const r = await fetch("/api/phone/token");
@@ -38,24 +35,20 @@ async function init() {
 async function dial() {
   if (!device || call) return;
   show([["big", pretty(number)], ["blink", "Calling..."], "allow mic"], "", "End");
-  try {
-    call = await device.connect({ params: { To: number } });
-  } catch (e) { call = null; idle(["Call failed", "see panel", "Navi = retry"]); addLog("error", "Call", e.message); return; }
+  try { call = await device.connect({ params: { To: number } }); }
+  catch (e) { call = null; idle(["Call failed", "see panel", "Navi = retry"]); addLog("error", "Call", e.message); return; }
   navi.classList.add("live");
   call.on("accept", () => {
     startedAt = Date.now();
     timers.tick = setInterval(() => show([["big", pretty(number)], fmt(Math.round((Date.now() - startedAt) / 1000)), "speak / 2=EN"], "", "End"), 1000);
-    timers.poll = setInterval(refreshLog, 1500);
   });
   for (const ev of ["disconnect", "cancel", "reject"]) call.on(ev, hangup);
 }
 
 function hangup() {
   if (call) { try { call.disconnect(); } catch (_) {} }
-  call = null;
-  clearInterval(timers.tick); clearInterval(timers.poll);
-  setTimeout(refreshLog, 1500); setTimeout(refreshLog, 4000);
-  idle(["Call ended", "see panel", "Navi = call"]);
+  call = null; clearInterval(timers.tick);
+  idle(["Call ended", "Navi = call"]);
 }
 
 function key(d) {
@@ -70,23 +63,36 @@ function addLog(cls, who, text) {
   log.prepend(li);
 }
 
-async function refreshLog() {
-  const d = await (await fetch("/api/events")).json();
-  const mine = d.events.filter((e) => e.channel === "voice").slice(0, 6);
+const age = (ts) => {
+  const s = Math.max(0, Math.round((Date.now() - new Date(ts.replace(" ", "T") + "Z")) / 1000));
+  return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`;
+};
+
+async function refresh() {
+  let d;
+  try { d = await (await fetch("/api/events")).json(); } catch (_) { return; }
+  wp.innerHTML = "";
+  for (const w of d.waterpoints) {
+    const tr = document.createElement("tr");
+    if (lastStatus[w.id] && lastStatus[w.id] !== w.status) tr.className = "changed";
+    lastStatus[w.id] = w.status;
+    tr.innerHTML = `<td>${esc(w.name)}</td><td>${esc(w.village)}</td><td class="status ${w.status}">${w.status}</td><td class="age">${age(String(w.updated))}</td>`;
+    wp.appendChild(tr);
+  }
+  const calls = d.events.filter((e) => e.channel === "voice").slice(0, 5);
   for (const li of [...log.children]) if (!li.classList.contains("error")) li.remove();
-  if (!mine.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No calls yet."; log.appendChild(li); return; }
-  for (const e of mine) {
+  if (!calls.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "No calls yet."; log.appendChild(li); }
+  for (const e of calls) {
     const li = document.createElement("li");
-    li.innerHTML = `<div class="who">${e.ts.slice(11, 19)} · ${e.lang}</div><div class="you">${esc(e.body) || "(nothing understood)"}</div><div class="line">${esc(e.reply)}</div>`;
+    li.innerHTML = `<div class="who">${age(e.ts)} · ${e.lang} · ${esc(e.sender)}</div><div class="you">${esc(e.body) || "(nothing understood)"}</div><div class="line">${esc(e.reply)}</div>`;
     log.appendChild(li);
   }
 }
-const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
 navi.onclick = () => (call ? null : dial());
 $("key-c").onclick = () => { if (call) hangup(); else { dialed = ""; idle(); } };
-$("key-prev").onclick = () => log.scrollBy({ top: -120, behavior: "smooth" });
-$("key-next").onclick = () => log.scrollBy({ top: 120, behavior: "smooth" });
+$("key-prev").onclick = () => document.querySelector(".panel").scrollBy({ top: -160, behavior: "smooth" });
+$("key-next").onclick = () => document.querySelector(".panel").scrollBy({ top: 160, behavior: "smooth" });
 for (const b of document.querySelectorAll("[data-digit]")) b.onclick = () => key(b.dataset.digit);
 document.addEventListener("keydown", (ev) => {
   if (/^[0-9*#]$/.test(ev.key)) { key(ev.key); const b = document.querySelector(`[data-digit="${ev.key}"]`); b.classList.add("pressed"); setTimeout(() => b.classList.remove("pressed"), 120); }
@@ -96,4 +102,4 @@ document.addEventListener("keydown", (ev) => {
 
 show([["big", "NOKIA"], "Reach Line", "loading"], "", "");
 init().catch((e) => { show(["Error", "see panel"], "!", ""); addLog("error", "Init", e.message); });
-refreshLog();
+refresh(); setInterval(refresh, 2000);

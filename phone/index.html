@@ -9,44 +9,42 @@
 </head>
 <body>
 <div class="stage">
-  <div class="scaler">
-    <div class="nokia3310" id="phone">
-      <div class="nokia-head-container">
-        <div class="speaker"><div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div><div class="hole"></div></div>
-        <div class="logo">NOKIA</div>
-        <div class="screen-container" id="lcd" aria-live="polite">
-          <div class="lcd-top"><span id="lcd-signal">▮▮▮▮</span><span id="lcd-status">…</span><span id="lcd-batt">▮▮▮</span></div>
-          <div class="lcd-main" id="lcd-main"></div>
-          <div class="lcd-soft" id="lcd-soft">Call</div>
-        </div>
-        <div class="bottom-oval">
-          <button class="big button top" id="key-navi" aria-label="Call"></button>
-        </div>
-      </div>
-      <div class="bottom-buttons">
-        <button class="big button left" id="key-c" aria-label="End or clear"><span>C</span></button>
-        <button class="big button right" aria-label="Scroll"><span id="key-prev">&#8249;</span><span id="key-next">&#8250;</span></button>
-      </div>
-      <div class="keyboard" id="keyboard">
-        <div class="button-key-container"><button class="button-key left" data-digit="1"><span class="special">1</span><span class="minitext compact">o_o</span></button></div>
-        <div class="button-key-container"><button class="button-key middle" data-digit="2"><span class="special">2</span><span class="minitext">abc</span></button></div>
-        <div class="button-key-container invert"><button class="button-key right" data-digit="3"><span class="special">3</span><span class="minitext">def</span></button></div>
-        <div class="button-key-container"><button class="button-key left" data-digit="4"><span class="special">4</span><span class="minitext">ghi</span></button></div>
-        <div class="button-key-container"><button class="button-key middle" data-digit="5"><span class="special">5</span><span class="minitext">jkl</span></button></div>
-        <div class="button-key-container invert"><button class="button-key right" data-digit="6"><span class="special">6</span><span class="minitext">mno</span></button></div>
-        <div class="button-key-container"><button class="button-key left" data-digit="7"><span class="special">7</span><span class="minitext">pqrs</span></button></div>
-        <div class="button-key-container"><button class="button-key middle" data-digit="8"><span class="special">8</span><span class="minitext">tuv</span></button></div>
-        <div class="button-key-container invert"><button class="button-key right" data-digit="9"><span class="special">9</span><span class="minitext">wxyz</span></button></div>
-        <div class="button-key-container"><button class="button-key left" data-digit="*"><span class="special">*</span><span class="minitext">+</span></button></div>
-        <div class="button-key-container"><button class="button-key middle" data-digit="0"><span class="special">0</span><span class="minitext rotate">[</span></button></div>
-        <div class="button-key-container invert"><button class="button-key right" data-digit="#"><span class="special">#</span><span class="minitext home"></span></button></div>
-      </div>
+  <div class="phone" id="phone">
+    <img src="/api/phone/static/nokia3310.png" alt="Nokia 3310" draggable="false">
+    <div class="lcd" id="lcd" aria-live="polite">
+      <div class="lcd-top"><span class="sig">▮▮▮▮</span><span id="lcd-status"></span><span class="bat">▮▮▮</span></div>
+      <div class="lcd-main" id="lcd-main"></div>
+      <div class="lcd-soft" id="lcd-soft">Call</div>
     </div>
+    <!-- hit areas over the real keys, percentages measured on the photo -->
+    <button class="hit navi" id="key-navi" style="left:31%;top:51.3%;width:38.5%;height:5.8%" aria-label="Call"></button>
+    <button class="hit" id="key-c" style="left:16.5%;top:54.2%;width:18.5%;height:7.5%" aria-label="Hang up or clear"></button>
+    <button class="hit" id="key-prev" style="left:56.5%;top:54.5%;width:13.5%;height:9.8%" aria-label="Scroll up"></button>
+    <button class="hit" id="key-next" style="left:70%;top:54.5%;width:13.5%;height:9.8%" aria-label="Scroll down"></button>
+    <button class="hit" data-digit="1" style="left:13%;top:64.8%;width:18.5%;height:5.6%">1</button>
+    <button class="hit" data-digit="2" style="left:40.5%;top:66.5%;width:19.5%;height:5.6%">2</button>
+    <button class="hit" data-digit="3" style="left:69%;top:64.8%;width:18.5%;height:5.6%">3</button>
+    <button class="hit" data-digit="4" style="left:13.8%;top:71.8%;width:18.5%;height:5.6%">4</button>
+    <button class="hit" data-digit="5" style="left:40.5%;top:73.6%;width:19.5%;height:5.6%">5</button>
+    <button class="hit" data-digit="6" style="left:68.2%;top:71.8%;width:18.5%;height:5.6%">6</button>
+    <button class="hit" data-digit="7" style="left:15%;top:78.9%;width:18.5%;height:5.6%">7</button>
+    <button class="hit" data-digit="8" style="left:40.5%;top:80.6%;width:19.5%;height:5.6%">8</button>
+    <button class="hit" data-digit="9" style="left:67%;top:78.9%;width:18.5%;height:5.6%">9</button>
+    <button class="hit" data-digit="*" style="left:15.8%;top:85.9%;width:18.5%;height:5.6%">*</button>
+    <button class="hit" data-digit="0" style="left:40.5%;top:87.7%;width:19.5%;height:5.6%">0</button>
+    <button class="hit" data-digit="#" style="left:66%;top:85.9%;width:18.5%;height:5.6%">#</button>
   </div>
-  <aside class="log" aria-label="Live transcript">
-    <h2>Live</h2>
-    <p class="hint">Navi key = call · C = hang up · 2 = English · digits send tones</p>
-    <ol id="log"></ol>
+
+  <aside class="panel" aria-label="Live data">
+    <section>
+      <h2>Water points <span class="live-dot" title="live"></span></h2>
+      <table class="wp"><thead><tr><th>Name</th><th>Village</th><th>Status</th><th>Updated</th></tr></thead><tbody id="wp"></tbody></table>
+    </section>
+    <section>
+      <h2>Calls</h2>
+      <ol id="log"></ol>
+    </section>
+    <p class="hint">Navi key = call · C = hang up · 2 = English · digits send tones · ‹ › scroll</p>
   </aside>
 </div>
 <script src="/api/phone/static/phone.js"></script>
