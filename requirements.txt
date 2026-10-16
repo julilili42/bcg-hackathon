@@ -1,0 +1,13 @@
+fastapi==0.143.3
+uvicorn==0.54.0
+langgraph==1.2.15
+langchain-anthropic==1.7.6
+qdrant-client==1.16.2
+fastembed==0.9.0
+pydantic==2.14.1
+python-dotenv==1.2.4
+pytest==9.1.1
+httpx==0.28.1
+twilio==9.12.0
+python-multipart==0.0.32
+websockets==16.1.1

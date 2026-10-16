@@ -1,0 +1,4 @@
+# Optional local test tool; the server does not require this package.
+faster-whisper==1.2.1
+# Newer PyAV versions removed the metadata_errors argument used by faster-whisper.
+av==16.1.0
