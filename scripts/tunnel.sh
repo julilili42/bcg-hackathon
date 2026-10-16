@@ -9,5 +9,5 @@ for i in $(seq 1 40); do
   sleep 1
 done
 [ -z "$URL" ] && { echo "tunnel failed:"; tail -5 "$LOG"; exit 1; }
-scripts/set_webhooks.sh "$URL"
+scripts/set_webhooks.sh "$URL" "$@"
 echo "tunnel up, Ctrl-C to stop"; wait
