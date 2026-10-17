@@ -10,6 +10,7 @@ T = {  # reply templates. ponytail: Swahili written by non-native, have a Tanzan
            "bye": "Kwaheri.",
            "recorded": "Asante. {p} imeandikwa kama {s}.",
            "noted": "Asante. Taarifa yako imeandikwa.",
+           "blocked": "Asante. Njia ya kwenda {p} imeandikwa kama imefungwa.",
            "status": "{p} {s}.",
            "nearest": "Kutoka {p}, kisima cha karibu kinachofanya kazi ni {q}, takriban dakika {m} kwa miguu.",
            "none": "Hakuna kisima kinachofanya kazi karibu na {p}.",
@@ -23,6 +24,7 @@ T = {  # reply templates. ponytail: Swahili written by non-native, have a Tanzan
            "bye": "Goodbye.",
            "recorded": "Thank you. {p} is recorded as {s}.",
            "noted": "Thank you. Your report is recorded.",
+           "blocked": "Thank you. The way to {p} is recorded as blocked.",
            "status": "{p} is {s}.",
            "nearest": "From {p}, the nearest working water point is {q}, about {m} minutes on foot.",
            "none": "There is no working water point near {p}.",
@@ -36,6 +38,7 @@ T = {  # reply templates. ponytail: Swahili written by non-native, have a Tanzan
            "bye": "Auf Wiederhören.",
            "recorded": "Danke. {p} ist als {s} gespeichert.",
            "noted": "Danke. Ihre Meldung ist gespeichert.",
+           "blocked": "Danke. Der Weg nach {p} ist als gesperrt gespeichert.",
            "status": "{p} ist {s}.",
            "nearest": "Die nächste funktionierende Wasserstelle von {p} aus ist {q}, etwa {m} Minuten zu Fuß.",
            "none": "In der Nähe von {p} gibt es keine funktionierende Wasserstelle.",
@@ -44,17 +47,19 @@ T = {  # reply templates. ponytail: Swahili written by non-native, have a Tanzan
 }
 # the same, as one SMS: short, no pleasantries
 SMS = {
-    "sw": {"recorded": "Imeandikwa: {p} {s}.", "noted": "Taarifa imeandikwa.", "status": "{p}: {s}.",
+    "sw": {"recorded": "Imeandikwa: {p} {s}.", "noted": "Taarifa imeandikwa.", "blocked": "Imeandikwa: njia ya {p} imefungwa.", "status": "{p}: {s}.",
            "nearest": "Kisima cha karibu kinachofanya kazi: {q}, ~dakika {m} kwa miguu.", "none": "Hakuna kisima kinachofanya kazi karibu na {p}.",
            "unknown": "Sikuelewa. Andika jina la kisima na hali yake."},
-    "en": {"recorded": "Recorded: {p} {s}.", "noted": "Report recorded.", "status": "{p}: {s}.",
+    "en": {"recorded": "Recorded: {p} {s}.", "noted": "Report recorded.", "blocked": "Recorded: way to {p} blocked.", "status": "{p}: {s}.",
            "nearest": "Nearest working: {q}, ~{m} min on foot.", "none": "No working water point near {p}.",
            "unknown": "Not understood. Text the water point's name and whether it works."},
-    "de": {"recorded": "Gespeichert: {p} {s}.", "noted": "Meldung gespeichert.", "status": "{p}: {s}.",
+    "de": {"recorded": "Gespeichert: {p} {s}.", "noted": "Meldung gespeichert.", "blocked": "Gespeichert: Weg nach {p} gesperrt.", "status": "{p}: {s}.",
            "nearest": "Nächste funktionierende: {q}, ~{m} Min zu Fuß.", "none": "Keine funktionierende Wasserstelle bei {p}.",
            "unknown": "Nicht verstanden. Bitte Name der Wasserstelle und ob sie funktioniert."},
 }
 STATUS_WORDS = {"broken": ["broken", "not work", "damaged", "imeharibika", "haifanyi", "mbovu", "kaputt", "defekt", "funktioniert nicht"],
                 "empty": ["empty", "dry", "no water", "hakuna maji", "kavu", "haina maji", "leer", "kein wasser", "trocken"],
                 "ok": ["working", "works", "fine", "inafanya kazi", "nzuri", "iko sawa", "funktioniert", "geht wieder", "läuft"]}
-LANG_WORDS = {"sw": ["kisima", "maji", "imeharibika", "inafanya", "kazi"], "de": ["wasserstelle", "brunnen", "kaputt", "funktioniert", "ist "]}
+BLOCKED_WORDS = ["cannot reach", "can't reach", "can not reach", "unable to reach", "cannot get to", "can't get to", "blocked", "flooded", "cut off",
+                 "siwezi kufika", "imefungwa", "mafuriko", "nicht erreichen", "komme nicht", "gesperrt", "überflutet", "abgeschnitten"]
+LANG_WORDS = {"sw": ["kisima", "maji", "imeharibika", "inafanya", "kazi", "niko", "njia"], "de": ["wasserstelle", "brunnen", "kaputt", "funktioniert", "ist ", "ich bin"]}

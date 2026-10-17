@@ -20,3 +20,12 @@ CREATE TABLE callers (          -- language a phone number chose, asked only on 
   sender  VARCHAR(40) PRIMARY KEY,
   lang    VARCHAR(2)
 );
+CREATE TABLE incidents (        -- a caller who said where they stand and which water point they cannot get water from
+  id      INT IDENTITY PRIMARY KEY,
+  ts      DATETIME2 DEFAULT SYSUTCDATETIME(),
+  place   NVARCHAR(80),         -- the registry name they gave: a village or a water point
+  lat     FLOAT, lon FLOAT,
+  wp_id   INT,                  -- the water point they cannot use
+  alt_id  INT,                  -- the nearest working one from where they stand, NULL when none works
+  blocked BIT DEFAULT 0         -- 1: the way there is blocked (the pump itself may work), 0: the pump is down
+);

@@ -1,8 +1,9 @@
 // Real Nokia 3310 photo as chassis; a real call through Twilio Voice SDK -> TwiML App -> /api/voice.
-// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Middle: the map, right: the live water points.
+// Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de). Middle: the map, right: the live water points
+// and the callers who said where they stand and which water point they cannot get water from (incidents).
 import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
-import { age, useEvents, type LogEvent } from "./api";
+import { COLOR, age, distanceKm, useEvents, walkMinutes, type LogEvent } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
 import WaterMap from "./WaterMap";
 
@@ -102,8 +103,12 @@ export default function Phone() {
   const FOCUS_S = 30;  // the map stays on the newest of them for half a minute, then glides back to the overview
   const agoS = (ts: string) => (Date.now() - new Date(String(ts).replace(" ", "T") + "Z").getTime()) / 1000;
   const hotPoints = data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).sort((a, b) => agoS(a.updated) - agoS(b.updated));
-  const hot = new Set(hotPoints.map((w) => w.id));
-  const focus = hotPoints[0] && agoS(hotPoints[0].updated) < FOCUS_S ? hotPoints[0] : null;
+  const incidents = data.incidents.filter((r) => agoS(r.ts) < HOT_S);  // newest first; the water points they touch are hot too
+  const hot = new Set([...hotPoints.map((w) => w.id), ...incidents.flatMap((r) => [r.wp_id, r.alt_id ?? -1])]);
+  const blockedIds = new Set(incidents.filter((r) => r.blocked).map((r) => r.wp_id));
+  const incident = incidents[0] && agoS(incidents[0].ts) < FOCUS_S ? incidents[0] : null;  // a located caller wins the map over a plain status change
+  const focus = !incident && hotPoints[0] && agoS(hotPoints[0].updated) < FOCUS_S ? hotPoints[0] : null;
+  const byId = Object.fromEntries(data.waterpoints.map((w) => [w.id, w]));
   const debug = location.search.includes("debug"); // ?debug=1 shows the hit areas
 
   // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
@@ -154,15 +159,25 @@ export default function Phone() {
       </div>
 
       <section className="mapbox" aria-label="Map">
-        <WaterMap waterpoints={data.waterpoints} focus={focus} className="panel-map" />
+        <WaterMap waterpoints={data.waterpoints} focus={focus} incident={incident} className="panel-map" />
       </section>
 
       <aside className="panel" aria-label="Live data">
+        {incidents.length > 0 && <>
+          <h2>Callers</h2>
+          <ol className="log callers">{incidents.map((r) => {
+            const wp = byId[r.wp_id], alt = r.alt_id == null ? undefined : byId[r.alt_id];
+            return <li key={r.id} className={r.id === incident?.id ? "live" : ""} style={{ borderColor: r.blocked || !wp ? COLOR.broken : COLOR[wp.status] }}>
+              <div className="who">{r.blocked ? "way blocked" : wp?.status} · {age(r.ts)}</div>
+              <div className="line"><b>{r.place}</b> → {wp?.name ?? "?"}{alt && <> · go to <b>{alt.name}</b>, ~{walkMinutes(distanceKm(r, alt))} min</>}</div>
+            </li>;
+          })}</ol>
+        </>}
         <h2>Water points</h2>
         <div className="scroll"><table className="wp">
           <tbody>{data.waterpoints.map((w) => (
             <tr key={w.id} className={hot.has(w.id) ? "hot" : ""}>
-              <td><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}</div></td>
+              <td><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}{blockedIds.has(w.id) && <span className="blocked"> · way blocked</span>}</div></td>
               <td className={`status ${w.status}`}>{w.status}</td>
             </tr>
           ))}</tbody>

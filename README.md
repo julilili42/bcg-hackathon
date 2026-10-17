@@ -1,10 +1,12 @@
 # Reach Gateway
 
 Phone-in water point line. A caller reports a water point ("Zahanati is broken") or asks about one
-("Is Mama Nasa working?"), in **Swahili**, **English** or **German**. Every report is stored as community
+("Is Mama Nasa working?"), or says where they are and which water point they cannot get to ("I am in Kigero,
+I cannot reach Zahanati"), in **Swahili**, **English** or **German**. Every report is stored as community
 evidence with time and provenance; every question is answered from that evidence, with dates and an
-"unverified" label, plus the nearest working water point. Also works over SMS and as a JSON API.
-One report helps the next caller.
+"unverified" label, plus the nearest working water point, measured from where the caller stands when they
+say it. The map shows the caller, the way that is blocked and the alternative. Also works over SMS and as a
+JSON API. One report helps the next caller.
 
 ## Quick start for the team
 
@@ -45,7 +47,7 @@ Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 | `gateway/knowledge.py` | one Qdrant collection: dense (FastEmbed bge-small) + BM25 sparse vectors, RRF fusion, evidence rules (newest per asset, conflicts within a day, verified dissent). `uv run -m gateway.knowledge` seeds it |
 | `gateway/texts.py` | everything the line says, in sw/en/de, and the keyword lists of the offline fallback |
 | `gateway/tts.py` | text → wav with Meta MMS-TTS, cached in `audio/` |
-| `gateway/db.py` | `events` + `waterpoints`, Azure SQL or SQLite (`db/events.db`) |
+| `gateway/db.py` | `events`, `waterpoints`, `callers`, `incidents` (a located caller, the water point they cannot use, the alternative), Azure SQL or SQLite (`db/events.db`) |
 | `gateway/phone.py` | Twilio Voice access tokens for the browser phone |
 | `db/schema.sql` | Azure SQL schema (SQLite is created on the fly with the same shape) |
 | `data/waterpoints.csv` | seed data: 14 real water points in Soga ward, Kibaha (names, coordinates, status from the Ministry of Water / Taarifa water point mapping 2011-2013) |
@@ -127,8 +129,12 @@ water points with status and age, plus the last calls, refreshed every 2 s.
    is stored in Qdrant as an unverified community report with time and an anonymous caller id; a question is
    answered from the retrieved evidence (newest report, conflicts, dates, "what you just reported"), never from
    nothing: with no evidence the table's status is read out. A down water point always comes with the nearest
-   working one, "from X: Y, about 15 minutes on foot" (straight line at 4 km/h, rounded to 5 minutes, water point to
-   water point: the caller's own position is unknown). Then "press 1 to report another", else goodbye.
+   working one, "from X: Y, about 15 minutes on foot" (straight line at 4 km/h, rounded to 5 minutes). "I am in
+   Kigero, I cannot reach Zahanati" is a `blocked` report: the pump's status is untouched, the alternative is measured
+   from Kigero (a village = the middle of its water points, or a water point by name; nothing else is geocoded), and
+   the caller lands in `incidents`: the phone page shows them on the map with the blocked way and the alternative, and
+   lists them above the water points for two minutes. Without a place, distances are water point to water point.
+   Then "press 1 to report another", else goodbye.
 5. Replies are spoken with MMS-TTS (`facebook/mms-tts-swh`, `-eng`, `-deu`). SMS answers in the
    language the message was written in.
 

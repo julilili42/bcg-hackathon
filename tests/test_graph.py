@@ -15,16 +15,22 @@ POINTS = [dict(id=1, name="Zahanati", village="Kigero", lat=-6.7788, lon=38.8615
 
 
 @pytest.fixture(autouse=True)
-def table(monkeypatch):
-    """An in-memory water point table; statuses set by the graph land here."""
+def table(monkeypatch, incidents):
+    """An in-memory water point table; statuses set by the graph land here, located callers in `incidents`."""
     points = [dict(p) for p in POINTS]
     monkeypatch.setattr(db, "waterpoints", lambda: [dict(p) for p in points])
     monkeypatch.setattr(db, "set_status", lambda wp_id, status: next(p for p in points if p["id"] == wp_id).update(status=status))
+    monkeypatch.setattr(db, "add_incident", lambda *a: incidents.append(a))
     monkeypatch.setattr(kb, "store_facts", lambda *a: ["fact-id"])
     monkeypatch.setattr(kb, "hybrid_search", lambda *a: [])
     monkeypatch.setattr(kb, "status_history", lambda *a: [])
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     return points
+
+
+@pytest.fixture
+def incidents():
+    return []
 
 
 def fact(**changes):
@@ -53,6 +59,22 @@ def test_keywords_report_updates_table_and_names_nearest(table):
     assert r["answer"].startswith("Thank you. Zahanati is recorded as broken. From Zahanati, the nearest working water point is Mama Nasa, ")
     assert g.handle_turn("Zahanati imeharibika", "u", "t")["lang"] == "sw"
     assert "kaputt" in g.handle_turn("Rabo ist kaputt", "u", "t")["answer"]
+
+
+def test_blocked_way_from_the_callers_place(table, incidents):
+    """'I am in X, I cannot reach Y': Y's pump is untouched, the alternative is measured from X, the map gets the caller."""
+    r = g.handle_turn("I am at Rabo, I cannot reach Zahanati", "u", "t", "en")
+    assert r["intent"] == "report" and r["interpretation"]["caller_location"] == "Rabo" and table[0]["status"] == "ok"
+    assert r["answer"] == "Thank you. The way to Zahanati is recorded as blocked. From Rabo, the nearest working water point is Mama Nasa, about 85 minutes on foot."
+    assert incidents == [("Rabo", -6.8, 38.9, 1, 2, True)]
+    assert g.handle_turn("Niko Kati, siwezi kufika Zahanati", "u", "t", channel="sms")["answer"] == "Imeandikwa: njia ya Zahanati imefungwa. Kisima cha karibu kinachofanya kazi: Mama Nasa, ~dakika 85 kwa miguu."
+    # a caller who says where they are and reports a down pump also lands on the map; a working one does not
+    assert g.handle_turn("I am in Kati, Zahanati is broken", "u", "t", "en")["answer"].endswith("From Kati, the nearest working water point is Mama Nasa, about 85 minutes on foot.")
+    assert g.handle_turn("I am in Kati, is Mama Nasa working?", "u", "t", "en")["answer"] == "Mama Nasa is working."
+    assert [i[3] for i in incidents] == [1, 1, 1]
+    i = g.Interpretation(intent="report", caller_location="Nowhere", facts=[fact(asset_id="Rabo", attribute="access", value="blocked")])
+    assert g.handle_turn("...", "u", "t", "en", interpretation=i)["answer"].startswith("Thank you. The way to Rabo is recorded as blocked. From Rabo,")
+    assert len(incidents) == 3  # a place the registry does not know has no coordinates: measured from the water point, not on the map
 
 
 def test_keywords_query_and_unclear():
@@ -102,13 +124,17 @@ def test_knowledge_store_down_still_answers(monkeypatch, table):
     assert g.handle_turn("Is Zahanati working?", "u", "t", "en")["answer"].startswith("Zahanati is broken.")
 
 
-def test_interpretation_consistency_and_registry():
+def test_interpretation_consistency_and_registry(monkeypatch):
     with pytest.raises(ValueError):
         g.Interpretation(intent="query", facts=[fact()], query="Working?")
     i = g.Interpretation(intent="report", facts=[fact(asset_id="Nowhere")])
     assert i.facts[0].asset_id is None and g.point(i) is None
     i = g.Interpretation(intent="query", query="?", query_asset_id="Rabo")
     assert i.query_village == "Kati" and g.point(i) == "Rabo"
+    assert g.places("Mama Nasa in Vikuge, then Zahanati") == ["Mama Nasa", "Vikuge", "Zahanati"]
+    monkeypatch.setattr(g, "registry", lambda: [{"name": "Vikuge Farm", "village": "Vikuge"}])
+    assert g.places("Vikuge Farm is empty") == ["Vikuge Farm"]  # the village inside the name is not a second place
+    assert db.locate("kigero") == {"name": "Kigero", "lat": -6.7788, "lon": 38.8615} and db.locate("the moon") is None
 
 
 @pytest.mark.parametrize("timestamp,expected", [("2026-10-16T14:00:00", None), ("2026-10-16", None), ("this afternoon", None),

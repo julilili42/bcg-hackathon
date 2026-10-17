@@ -171,7 +171,7 @@ def audio(req):
 
 @app.route("events", methods=["GET"])
 def events(req):
-    return func.HttpResponse(json.dumps({"events": db.events(), "waterpoints": db.waterpoints()}), mimetype="application/json")
+    return func.HttpResponse(json.dumps({"events": db.events(), "waterpoints": db.waterpoints(), "incidents": db.incidents()}), mimetype="application/json")
 
 
 @app.route("phone/token", methods=["GET"])

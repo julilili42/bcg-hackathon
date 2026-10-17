@@ -1,4 +1,4 @@
-"""Two tables, two backends. SQL_CONN set -> Azure SQL (pyodbc), else SQLite file.
+"""Four tables, two backends. SQL_CONN set -> Azure SQL (pyodbc), else SQLite file.
 ponytail: SQLite exists so `func start` works without Azure; set SQL_CONN at the hackathon."""
 import os, sqlite3, csv, math
 
@@ -14,6 +14,8 @@ def _connect():
     c.execute("""CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
         ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT)""")
     c.execute("CREATE TABLE IF NOT EXISTS callers (sender TEXT PRIMARY KEY, lang TEXT)")
+    c.execute("""CREATE TABLE IF NOT EXISTS incidents (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT DEFAULT CURRENT_TIMESTAMP,
+        place TEXT, lat REAL, lon REAL, wp_id INTEGER, alt_id INTEGER, blocked INTEGER DEFAULT 0)""")
     c.execute("""CREATE TABLE IF NOT EXISTS waterpoints (id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT, village TEXT, lat REAL, lon REAL, status TEXT DEFAULT 'ok', updated TEXT DEFAULT CURRENT_TIMESTAMP)""")
     if not c.execute("SELECT 1 FROM waterpoints LIMIT 1").fetchone():
@@ -50,6 +52,32 @@ def set_status(wp_id, status):
     with _connect() as c:
         c.execute("UPDATE waterpoints SET status=?, updated=CURRENT_TIMESTAMP WHERE id=?", (status, wp_id))
         c.commit()
+
+
+def locate(place):
+    """A place the caller names -> {"name", "lat", "lon"}: a water point, or a village (the middle of its water points).
+    None when the registry does not know it. ponytail: no geocoder, the registry is the whole map."""
+    low = (place or "").strip().lower()
+    points = waterpoints()
+    for key in ("name", "village"):
+        hit = [w for w in points if w[key].lower() == low] or [w for w in points if w[key].lower() in low]
+        if hit:
+            return {"name": hit[0][key], "lat": sum(w["lat"] for w in hit) / len(hit), "lon": sum(w["lon"] for w in hit) / len(hit)}
+    return None
+
+
+def add_incident(place, lat, lon, wp_id, alt_id, blocked):
+    """A caller who said where they stand and which water point they cannot get water from; alt_id = the working one we sent them to."""
+    with _connect() as c:
+        c.execute("INSERT INTO incidents(place,lat,lon,wp_id,alt_id,blocked) VALUES (?,?,?,?,?,?)", (place, lat, lon, wp_id, alt_id, int(bool(blocked))))
+        c.commit()
+
+
+def incidents(n=20):
+    sel, lim = _top(n)
+    with _connect() as c:
+        rows = c.execute(f"{sel} id,ts,place,lat,lon,wp_id,alt_id,blocked FROM incidents ORDER BY id DESC{lim}").fetchall()
+    return [{**dict(zip(["id", "ts", "place", "lat", "lon", "wp_id", "alt_id", "blocked"], r)), "ts": str(r[1]), "blocked": bool(r[7])} for r in rows]
 
 
 def get_lang(sender):
