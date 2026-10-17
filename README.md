@@ -2,6 +2,112 @@
 
 One report helps the next village.
 
+## Terminal-triggered outbound demo call
+
+For a prepared news-first scenario, run `python seed_outbound_demo.py` and set
+`DEMO_OPENING_PIPE_ID` to its printed school borehole UUID. The opening announces its
+reported failure and suggests a working alternative selected from current database reports.
+Follow-up access and maintenance details are retrieved from Qdrant. See the proactive phone
+scenario in [DEMO_PROMPTS.md](DEMO_PROMPTS.md); no conversation is scripted or stored.
+
+This adds outbound calls to the existing agent; it does not change the database schema or
+replace the inbound Azure voice interface. No additional dependencies are required.
+
+Configure these in your local `.env` (keep real numbers and keys out of source control):
+
+```env
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_PHONE_NUMBER=
+PUBLIC_BASE_URL=https://your-current-tunnel.example
+DEMO_CALLEE_NUMBER=
+DEMO_ALLOWED_NUMBERS=
+DEMO_OPENING_PIPE_ID=
+DEMO_OPENING_MESSAGE=
+TWILIO_RELAY_TTS_PROVIDER=Google
+TWILIO_RELAY_VOICE=
+VOICE_DEBUG_TRANSCRIPTS=0
+```
+
+Use E.164 format for both phone numbers. Put the explicitly consenting recipient in both
+`DEMO_CALLEE_NUMBER` and the comma-separated `DEMO_ALLOWED_NUMBERS` allowlist. The sender
+must be your voice-capable Twilio number. Existing Anthropic, PostgreSQL, and Qdrant
+configuration is reused. Trial accounts require a verified recipient; destination countries
+must be enabled in Twilio Voice Geographic Permissions.
+
+Leave `DEMO_OPENING_PIPE_ID` blank for a brief AI introduction. To proactively announce an
+existing water point's reported condition, set that variable to its PostgreSQL UUID.
+For the seeded school borehole, find it with:
+
+```sh
+.venv/bin/python -c 'import infrastructure as db; print(db.resolve_pipe("Alero school borehole", "Alero")["pipe"]["id"])'
+```
+
+The console reads the latest PostgreSQL record before dialing; it does
+not seed a failure, invent a repair, or save its own introduction as a resident report.
+It identifies WaterLine as AI and describes the status as unverified and potentially outdated.
+`DEMO_OPENING_MESSAGE` optionally supplies the default introduction's message when no asset
+is selected. It follows the fixed AI introduction; only put truthful demo content there.
+
+Start the existing backend and tunnel in separate terminals:
+
+```sh
+.venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+cloudflared tunnel --url http://localhost:8000
+```
+
+Set `PUBLIC_BASE_URL` to the current HTTPS tunnel origin and restart the backend after
+changing it. Twilio must be able to reach `/twilio/ws` over WSS. The outbound console uses
+inline TwiML and the existing signed WebSocket; it requires no new webhook or dialing endpoint.
+
+In another terminal:
+
+```sh
+.venv/bin/python scripts/demo_call.py
+```
+
+Press **c** (no Enter required on macOS/Linux). Only this action requests a call. The
+allowlisted recipient's phone should ring; answer to hear the opening. Ask “Where else can
+I go?” or report “It is working again now.” The same LangGraph resolves references using
+bounded, call-local conversation context and applies the existing timestamp, PostgreSQL and
+Qdrant rules. Each call starts with fresh context. Text callers can also pass context to the
+shared `handle_turn(..., context=[...])` function; no separate phone agent exists.
+
+The console masks the recipient, prints the real Call SID, and polls actual provider status.
+Repeated **c** presses are blocked while active. A local lock prevents two consoles for the
+same account; a provider lookup also catches an existing call after a restart. A timeout
+while creating a call blocks another attempt because the first request may have succeeded.
+Press **q** to quit monitoring; it does not hang up an existing call. End the call on the phone.
+There are no startup calls, redial loops, recording, scheduling, or outbound HTTP endpoint.
+
+Outbound speech uses Deepgram and native ConversationRelay TTS, with the existing Google
+Journey voice as the default. To use ElevenLabs, set `TWILIO_RELAY_TTS_PROVIDER=ElevenLabs`
+and `TWILIO_RELAY_VOICE` to a voice supported by your ConversationRelay configuration.
+Azure still serves inbound calls and the browser demo. The opening is passed through
+[`welcomeGreeting`](https://www.twilio.com/docs/voice/twiml/connect/conversationrelay),
+and the WebSocket sends each complete answer as a text token message. It does not send
+a duplicate greeting after setup or implement a new audio pipeline. Logs distinguish a
+configured greeting from confirmed playback; they do not claim it was heard.
+
+Keep transcript logging off by default. For a local demonstration only, setting
+`VOICE_DEBUG_TRANSCRIPTS=1` prints a limited user transcript to the backend terminal.
+Ordinary backend logs include call/turn events and confirmed report/indexing counts.
+Current navigation support is limited to known destination names and access landmarks:
+there is no route calculation/publication service, so the agent does not claim a dashboard
+route was sent. Infrastructure status changes still appear through the existing live dashboard.
+
+Tests never dial real numbers:
+
+```sh
+.venv/bin/python -m pytest -q
+RUN_BROWSER_SMOKE=1 .venv/bin/python -m pytest tests/test_browser_demo.py -q
+RUN_POSTGRES_SMOKE=1 RUN_LIVE_LLM=1 .venv/bin/python -m pytest tests/test_infrastructure.py -k live_followups -s -q
+```
+
+The optional live-model rehearsal uses a temporary SQL schema and Qdrant collection; it
+checks pronoun resolution, real report persistence/indexing and retained provenance without
+placing a telephone call. A real end-to-end call requires the configured recipient to answer.
+
 Text-first prototype with an optional Twilio phone adapter: a resident reports a change and asks a question in the same message. Another resident can immediately retrieve that report with dates and provenance. All included villages, assets and observations are **fictional synthetic demo data**, not verified Ugandan infrastructure.
 
 ## Run the infrastructure demo
@@ -213,8 +319,9 @@ Try Chrome on localhost or use HTTPS when hosting. Recognition may use the brows
 vendor's online service; audio input should not be assumed to stay on-device or work
 offline. WaterLine receives the finalized transcript. Typing remains available if the
 browser does not support recognition. English is the demo language; disable hands-free
-mode to correct place names before sending. Each turn needs an asset name and village;
-the knowledge engine has no conversational memory for phrases like "that pump".
+mode to correct place names before sending. The browser currently sends each turn without
+conversation context, so include the asset name and village. Phone calls pass bounded
+context to the same knowledge engine and can resolve unambiguous follow-ups.
 
 Optional browser tests (microphone, Azure responses, and audio playback are simulated):
 
@@ -335,14 +442,14 @@ https://your-domain.ngrok-free.app/twilio/voice
 
 Save, then call that Twilio number from your phone. If your Console uses TwiML Apps instead, set the app's Voice request URL to this same endpoint and assign that app to the number.
 
-7. After the greeting, say: **“The Alero clinic pump stopped working this morning. Is the Alero school borehole working?”** Then ask: **“Is the Alero clinic pump working?”** Name the asset and village in each utterance; this adapter does not add conversation memory or resolve cross-turn pronouns. The current speech pilot is English (`en-US`); no local-language or accent accuracy is claimed.
+7. After the greeting, say: **“The Alero clinic pump stopped working this morning. Is the Alero school borehole working?”** Then ask: **“Is the Alero clinic pump working?”** Full names remain useful when several water points are discussed; unambiguous follow-ups use the current call's bounded context. The current speech pilot is English (`en-US`); no local-language or accent accuracy is claimed.
 
-Only `prompt` messages with `last: true` enter the graph. Each completed utterance gets its own stable `twilio:<callSid>:<turn_number>` ID and server receipt timestamp. The caller ID is call-scoped and HMAC-derived from the call identifier; caller phone numbers are not passed to the graph or stored in Qdrant. The greeting discloses that reports are stored and reused. User reports remain unverified.
+Only `prompt` messages with `last: true` enter the graph. Each completed utterance gets its own stable `twilio:<callSid>:<turn_number>` ID and server receipt timestamp. The caller ID is call-scoped and HMAC-derived from the call identifier; caller phone numbers are not passed to the graph or stored in Qdrant. Community reports are saved and reused as unverified information.
 
 The receiver continues listening while turns run in order. Interruptions and hangups suppress unsent speech, but let already accepted final turns finish so committed facts are retained. Connection state and the turn counter exist only for the current WebSocket connection; this prototype does not reconnect or recover call state after a server restart. Twilio performs speech interruption on its side. Answers are synthesized only after retrieval/resolution completes. The phone adapter sends
 one Azure audio `play` message per completed answer. An interrupt cancels pending synthesis
 and suppresses stale output, while accepted reports continue saving. The Azure greeting is
-non-interruptible to retain the disclosure; answer playback is interruptible and preemptible.
+non-interruptible so the opening is not cut off; answer playback is interruptible and preemptible.
 If Azure synthesis fails, a text message invokes ConversationRelay's fallback voice instead.
 
 Both endpoints validate Twilio signatures against your configured public URL. Missing voice configuration disables the phone adapter without disabling `/interact`. Direct unsigned `curl` requests to `/twilio/voice` return 403 by design. If calls fail, check Twilio's call debugger: 64102 usually indicates an unreachable WSS route; 64110 indicates ConversationRelay is not enabled. A 403 often means the public URL or account Auth Token differs from the one Twilio is using. Update both `.env` and the number's webhook if the tunnel address changes.

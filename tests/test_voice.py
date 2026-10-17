@@ -136,7 +136,7 @@ def test_interrupt_suppresses_unsent_answer_but_finishes_report(client, monkeypa
             second_received.set()
         return "2026-10-16T08:30:00Z"
 
-    async def handle(message, *args):
+    async def handle(message, *args, **kwargs):
         if message == "first report":
             started.set()
             assert await asyncio.to_thread(release.wait, 3)
@@ -207,6 +207,44 @@ def test_greeting_and_reply_use_same_azure_voice_and_expiring_media(client, monk
     monkeypatch.setattr(voice, "monotonic", lambda: future)
     assert client.get(reply["source"]).status_code == 404
     assert not voice._audio_clips
+
+
+def test_outbound_native_greeting_context_and_session_isolation(client, monkeypatch):
+    import infrastructure as db
+    monkeypatch.setattr(db, "get_pipe_by_id", lambda _: dict(name="Alero school borehole", village="Alero"))
+    opening = "Hey, WaterLine here, your AI assistant. Alero school borehole is reported broken, unverified."
+    handler = AsyncMock(side_effect=[
+        {"answer": "The Alero clinic hand pump is reported working.", "reports": []},
+        {"answer": "Thanks, recorded as unverified.", "reports": [{"applied_to_current_status": True, "qdrant_indexed": True}]},
+        {"answer": "A fresh conversation.", "reports": []}])
+    monkeypatch.setattr(voice, "handle_turn", handler)
+    parameters = {"waterline_mode": "outbound", "opening_message": opening,
+        "opening_asset_id": "ff50877c-99aa-5dbb-a163-0a1d6b643a50"}
+    headers = signature(BASE + "/twilio/ws")
+    with client.websocket_connect("/twilio/ws", headers=headers) as ws:
+        ws.send_json({**setup(), "customParameters": parameters})
+        ws.send_json(prompt("partial", last=False))
+        ws.send_json(prompt("Yes, where else can I go?"))
+        first = ws.receive_json()
+        # No duplicate greeting or audio synthesis: first WebSocket output is the agent answer.
+        assert first["type"] == "text" and first["last"] is True
+        assert "clinic" in first["token"]
+        ws.send_json(prompt("The water point you just suggested is also broken."))
+        assert "recorded" in ws.receive_json()["token"]
+    assert handler.await_count == 2
+    first_call, second_call = handler.await_args_list
+    assert first_call.args[0] == "Yes, where else can I go?"
+    assert first_call.kwargs["context"][0]["content"] == opening
+    assert any(m["content"] == "The Alero clinic hand pump is reported working." for m in second_call.kwargs["context"])
+    assert all("+1555555" not in str(call) for call in handler.await_args_list)
+    voice.create_speech.assert_not_awaited()
+    with client.websocket_connect("/twilio/ws", headers=headers) as ws:
+        ws.send_json({**setup(), "callSid": "CA" + "3" * 32, "customParameters": parameters})
+        ws.send_json(prompt("What about it?"))
+        ws.receive_json()
+    fresh = handler.await_args_list[-1]
+    assert not any("clinic" in m["content"] for m in fresh.kwargs["context"])
+    assert fresh.args[1] != first_call.args[1]
 
 
 def test_audio_cache_is_bounded_and_urls_contain_no_transcripts(client, monkeypatch):

@@ -42,6 +42,18 @@ def test_question_only_does_not_store(monkeypatch):
     assert calls == [("search", "Is the clinic pump working?")]
 
 
+def test_context_is_bounded_and_current_message_is_kept_separate(monkeypatch):
+    model = Mock()
+    model.with_structured_output.return_value.ainvoke = AsyncMock(return_value=g.Interpretation(intent="unclear"))
+    monkeypatch.setattr(g, "llm", lambda: model)
+    context = [{"role": "assistant", "content": f"Earlier item {n}"} for n in range(12)]
+    asyncio.run(g.handle_turn("Which one?", "demo-user", "context-turn", "2026-10-17T08:00:00Z", context=context))
+    messages = model.with_structured_output.return_value.ainvoke.call_args.args[0]
+    assert messages[-1] == ("human", "Which one?")
+    assert "Earlier item 0" not in messages[0][1] and "Earlier item 11" in messages[0][1]
+    assert len(context) == 12  # The shared entry point does not mutate adapter session state.
+
+
 def test_report_only_and_unclear(monkeypatch):
     result, calls, model = invoke(monkeypatch, g.Interpretation(intent="report", facts=[fact()]))
     assert calls == ["store"] and result["sources"] == []

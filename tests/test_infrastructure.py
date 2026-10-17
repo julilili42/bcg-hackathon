@@ -243,6 +243,78 @@ def test_live_showcase_three_turns(registry, monkeypatch):
 
 
 @pytest.mark.skipif(os.getenv("RUN_LIVE_LLM") != "1", reason="requires configured Anthropic and Qdrant")
+def test_live_followups_use_same_graph_and_preserve_provenance(registry, monkeypatch):
+    import seed_showcase as showcase
+    monkeypatch.setattr(kb, "COLLECTION", "waterline_context_test_" + uuid4().hex)
+    context = [{"role": "assistant", "content":
+        "WaterLine AI here. The Alero school borehole was reported working, unverified. How can I help?"}]
+    try:
+        showcase.seed("isolated-call-context")
+        with db.connect() as conn:
+            before = conn.execute("SELECT count(*) AS n FROM pipe_reports").fetchone()["n"]
+        messages = ["It is broken right now. Where else can I go?",
+                    "The water point you just suggested is also broken.",
+                    "Can you show me the route there?"]
+        results = []
+        for message in messages:
+            result = asyncio.run(g.handle_turn(message, "demo-call-context", str(uuid4()), kb.utcnow(), context=context))
+            results.append(result)
+            context.extend([{"role": "user", "content": message}, {"role": "assistant", "content": result["answer"]}])
+            print("Follow-up:", result["answer"])
+        school = db.resolve_pipe("alero_school_borehole")["pipe"]
+        clinic = db.resolve_pipe("alero_clinic_pump")["pipe"]
+        assert school["status"] == clinic["status"] == "broken"
+        assert results[0]["intent"] == "both" and results[0]["reports"][0]["pipe_id"] == str(school["id"])
+        assert results[1]["reports"][0]["pipe_id"] == str(clinic["id"])
+        assert results[2]["intent"] == "query" and not results[2]["stored_fact_ids"]
+        assert all(r["qdrant_indexed"] for result in results for r in result["reports"])
+        with db.connect() as conn:
+            rows = conn.execute("SELECT original_text FROM pipe_reports WHERE user_id=%s", ("demo-call-context",)).fetchall()
+            assert {row["original_text"] for row in rows} == set(messages[:2])
+            assert conn.execute("SELECT count(*) AS n FROM pipe_reports").fetchone()["n"] == before + len(rows)
+    finally:
+        if kb.client().collection_exists(kb.COLLECTION):
+            kb.client().delete_collection(kb.COLLECTION)
+
+
+@pytest.mark.skipif(os.getenv("RUN_LIVE_LLM") != "1", reason="requires configured Anthropic and Qdrant")
+def test_live_proactive_news_demo(registry, monkeypatch):
+    import seed_outbound_demo as demo
+    from scripts.demo_call import prepare_opening
+    monkeypatch.setattr(kb, "COLLECTION", "waterline_news_test_" + uuid4().hex)
+    try:
+        prepared = demo.seed("isolated-proactive-news")
+        monkeypatch.setenv("DEMO_OPENING_PIPE_ID", prepared["opening_pipe_id"])
+        opening, _ = prepare_opening()
+        print("Opening:", opening)
+        assert "school borehole" in opening and "as broken" in opening
+        assert "clinic hand pump is reported working" in opening
+        context = [{"role": "assistant", "content": opening}]
+        messages = ["Where should I go, and what should I bring?",
+                    "Is a repair team coming to the Alero school borehole?",
+                    "The clinic pump you suggested is broken right now."]
+        results = []
+        for message in messages:
+            result = asyncio.run(g.handle_turn(message, "demo-proactive-news", str(uuid4()), kb.utcnow(), context=context))
+            print("Reply:", result["answer"])
+            results.append(result)
+            context.extend([{"role": "user", "content": message}, {"role": "assistant", "content": result["answer"]}])
+        assert [r["intent"] for r in results] == ["query", "query", "report"]
+        assert not results[0]["stored_fact_ids"] and not results[1]["stored_fact_ids"]
+        assert "side gate" in results[0]["answer"].lower() and "container" in results[0]["answer"].lower()
+        assert any(p.get("source_id") == "isolated-proactive-news:school-maintenance" for p in results[1]["sources"])
+        clinic = db.resolve_pipe("alero_clinic_pump")["pipe"]
+        assert clinic["status"] == "broken"
+        assert results[2]["reports"][0]["pipe_id"] == str(clinic["id"])
+        assert results[2]["reports"][0]["qdrant_indexed"]
+        revised, _ = prepare_opening()
+        assert "clinic hand pump is reported working" not in revised
+    finally:
+        if kb.client().collection_exists(kb.COLLECTION):
+            kb.client().delete_collection(kb.COLLECTION)
+
+
+@pytest.mark.skipif(os.getenv("RUN_LIVE_LLM") != "1", reason="requires configured Anthropic and Qdrant")
 def test_live_natural_language_rehearsal(registry, monkeypatch):
     """Optional actual LLM + SQL + Qdrant rehearsal, isolated from the demo data."""
     monkeypatch.setattr(kb, "COLLECTION", "waterline_live_test_" + uuid4().hex)

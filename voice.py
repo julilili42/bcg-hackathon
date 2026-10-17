@@ -14,12 +14,14 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 from fastapi.responses import Response
 from twilio.request_validator import RequestValidator
 from twilio.twiml.voice_response import VoiceResponse
+from starlette.concurrency import run_in_threadpool
 
 from graph import handle_turn
 from knowledge import utcnow
 from speech import SpeechRequest, create_speech, spoken_text
 
 router = APIRouter()
+logger = logging.getLogger("uvicorn.error")
 # Transient playback only: random capability URLs, five-minute expiry, at most 64 clips.
 # Use one API worker for this small demo so the media GET shares the same memory.
 AUDIO_TTL = 300
@@ -55,6 +57,34 @@ async def call_audio(clip_id: str):
 WELCOME = "Hey WaterLine here, how can i help you?"
 
 
+def relay_options(base):
+    """Shared, working recognition and turn-taking configuration."""
+    return dict(url=base.replace("https://", "wss://", 1) + "/twilio/ws",
+        language="en-US", transcription_provider="Deepgram", speech_model="nova-3-general",
+        interruptible="speech", report_input_during_agent_speech="speech",
+        speech_timeout="1200", hints="Alero,Lumwa,Palaro,borehole,clinic")
+
+
+def outbound_twiml(base, opening, pipe_id=None):
+    """Native ConversationRelay TTS for outbound calls; no separate audio pipeline."""
+    provider = os.getenv("TWILIO_RELAY_TTS_PROVIDER", "Google").strip() or "Google"
+    if provider not in {"Google", "ElevenLabs"}:
+        raise ValueError("TWILIO_RELAY_TTS_PROVIDER must be Google or ElevenLabs.")
+    voice = os.getenv("TWILIO_RELAY_VOICE", "").strip()
+    if provider == "ElevenLabs" and not voice:
+        raise ValueError("Set TWILIO_RELAY_VOICE to a supported ElevenLabs ConversationRelay voice.")
+    response = VoiceResponse()
+    relay = response.connect().conversation_relay(**relay_options(base),
+        tts_provider=provider, voice=voice or "en-US-Journey-O",
+        welcome_greeting=opening, welcome_greeting_interruptible="none")
+    relay.parameter(name="waterline_mode", value="outbound")
+    relay.parameter(name="opening_message", value=opening)
+    if pipe_id:
+        relay.parameter(name="opening_asset_id", value=str(pipe_id))
+    response.hangup()
+    return str(response)
+
+
 def configuration():
     keys = ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL")
     values = [os.getenv(key, "").strip() for key in keys]
@@ -82,12 +112,9 @@ async def incoming_call(request: Request):
         raise HTTPException(403, "Unexpected Twilio account.")
     response = VoiceResponse()
     response.connect().conversation_relay(
-        url=base.replace("https://", "wss://", 1) + "/twilio/ws",
+        **relay_options(base),
         # Azure greeting is sent as media after WebSocket setup; Google is a failure fallback.
-        language="en-US", tts_provider="Google", voice="en-US-Journey-O",
-        transcription_provider="Deepgram", speech_model="nova-3-general",
-        interruptible="speech", report_input_during_agent_speech="speech",
-        speech_timeout="1200", hints="Alero,Lumwa,Palaro,borehole,clinic",
+        tts_provider="Google", voice="en-US-Journey-O",
     )
     response.hangup()
     return Response(str(response), media_type="application/xml")
@@ -128,6 +155,29 @@ async def conversation(websocket: WebSocket):
         return
 
     call_sid = setup["callSid"]
+    parameters = setup.get("customParameters") or {}
+    if not isinstance(parameters, dict):
+        await websocket.close(code=1008)
+        return
+    native_tts = parameters.get("waterline_mode") == "outbound"
+    context = []
+    opening = parameters.get("opening_message", "")
+    if native_tts:
+        if not isinstance(opening, str) or not opening.strip() or len(opening) > 2000:
+            await websocket.close(code=1008)
+            return
+        context.append({"role": "assistant", "content": opening})
+        if parameters.get("opening_asset_id"):
+            import infrastructure as db
+            pipe = await run_in_threadpool(db.get_pipe_by_id, parameters["opening_asset_id"])
+            if pipe is None:
+                await websocket.close(code=1008)
+                return
+            # Only entity identity, never an invented resident report.
+            context.append({"role": "assistant", "content": f"The opening concerns {pipe['name']} in {pipe['village']}."})
+    logger.info("[VOICE] ConversationRelay connected: %s", call_sid)
+    if native_tts:
+        logger.info("[VOICE] Native welcome greeting configured (playback completion unconfirmed): %s", call_sid)
     # Call-scoped provenance: never forward or persist the caller's phone number.
     user_id = "caller-" + hmac.new(token.encode(), call_sid.encode(), hashlib.sha256).hexdigest()[:24]
     del setup
@@ -144,6 +194,13 @@ async def conversation(websocket: WebSocket):
         if closed or (expected_generation is not None and generation != expected_generation):
             return
         spoken = spoken_text(answer)
+        if native_tts:
+            try:
+                await websocket.send_json({"type": "text", "token": escape(spoken), "last": True,
+                    "interruptible": interruptible, "preemptible": interruptible})
+            except (WebSocketDisconnect, RuntimeError, OSError):
+                pass
+            return
         clip = None
         try:
             speech_interruptible = interruptible
@@ -173,15 +230,28 @@ async def conversation(websocket: WebSocket):
             pass
 
     async def process_turns():
-        await send_spoken(WELCOME, interruptible=False)
+        if not native_tts:
+            await send_spoken(WELCOME, interruptible=False)
         while True:
             item = await queue.get()
             if item is None:
                 return
             message, turn_number, received_at, output_generation = item
             try:
-                result = await handle_turn(message, user_id, f"twilio:{call_sid}:{turn_number}", received_at)
+                logger.info("[AGENT] Processing completed turn: %s turn=%s", call_sid, turn_number)
+                if os.getenv("VOICE_DEBUG_TRANSCRIPTS") == "1":
+                    logger.info("[USER demo debug] %s", message[:500])
+                kwargs = {"context": [dict(m) for m in context[-8:]]} if context else {}
+                result = await handle_turn(message, user_id, f"twilio:{call_sid}:{turn_number}", received_at, **kwargs)
                 answer = result["answer"]
+                context.append({"role": "user", "content": message})
+                if not closed and generation == output_generation:
+                    context.append({"role": "assistant", "content": answer})
+                del context[:-8]
+                reports = result.get("reports", [])
+                logger.info("[AGENT] Answer ready: %s turn=%s reports=%s applied=%s indexed=%s", call_sid,
+                    turn_number, len(reports), sum(bool(r.get("applied_to_current_status")) for r in reports),
+                    sum(bool(r.get("qdrant_indexed")) for r in reports))
             except Exception as exc:
                 # Exception messages can contain provider request bodies; do not log transcripts.
                 logging.error("Phone turn failed (%s), turn=%s", type(exc).__name__, turn_number)
@@ -231,6 +301,7 @@ async def conversation(websocket: WebSocket):
         await websocket.close(code=1008)
     finally:
         closed = True
+        logger.info("[VOICE] Disconnected: %s", call_sid)
         if speech_task is not None:
             speech_task.cancel()
         # Finish already received final turns even on hangup. Threaded Qdrant writes

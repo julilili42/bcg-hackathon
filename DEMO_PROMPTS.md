@@ -1,5 +1,34 @@
 # WaterLine demo prompts
 
+## Proactive phone demo: news first, open conversation afterward
+
+Prepare with `python seed_outbound_demo.py`. Set `DEMO_OPENING_PIPE_ID` to the school
+borehole UUID printed by the command, then restart `python scripts/demo_call.py`.
+Press **c** and answer. The opening reads the school borehole's reported condition from
+PostgreSQL and names the newest dated working alternative in Alero. The starting data has
+the school broken, the clinic working, the market on low flow, and the riverside under repair.
+Everything is synthetic and unverified. No call is placed by seeding.
+
+The expected opening announces the school failure and suggests the clinic pump. Wording
+comes from database fields; the alternative changes when the reports change. It is not a
+stored conversation. Ask freely. Useful examples:
+
+- **“Where should I go, and what should I bring?”** — the clinic's side gate, a clean water
+  container, and help from the caretaker, grounded in its access notice.
+- **“Is a repair team coming to the Alero school borehole?”** — an inspection has been
+  requested; arrival and restoration times are not confirmed. A plan is not a completed repair.
+- **“The clinic pump you suggested is broken right now.”** — a new unverified clinic report
+  is saved to PostgreSQL and Qdrant; the dashboard changes on its next poll. Subsequent calls
+  must stop recommending that pump while its current reported status is broken.
+- **“I just checked the Alero school borehole and it's working again now.”** — records a newer
+  school observation, keeps previous reports in history, and animates the dashboard update.
+
+Questions alone do not save reports. Access arrangements do not certify water quality.
+Directions are limited to the sourced gate/landmark; there is no route calculation service.
+For another recording, append a fresh starting state with
+`python seed_outbound_demo.py --run-id outbound-rehearsal-2`. Repeating the same run ID
+does not reset changes made during your call.
+
 Active Qdrant collection: `water_knowledge`. It contains synthetic registry documents,
 dated observations, and maintenance/safety/repair-visit notices. PostgreSQL still supplies
 current registered-asset statuses; switching Qdrant collections does not reset those statuses.

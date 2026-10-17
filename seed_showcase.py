@@ -21,7 +21,8 @@ BASELINE = [
 ]
 
 
-def seed(run_id=DEFAULT_RUN_ID):
+def seed(run_id=DEFAULT_RUN_ID, baseline=None):
+    baseline = BASELINE if baseline is None else baseline
     seed_registry()
     kb.initialize()
     # Preserve the first run's clock on retries. A new run ID explicitly prepares a fresh baseline.
@@ -49,7 +50,7 @@ def seed(run_id=DEFAULT_RUN_ID):
     # Upload old events now, then apply a genuinely newer baseline. Never remove historical evidence.
     report("alero_clinic_pump", "broken", anchor - timedelta(days=3), "history-failure")
     report("alero_clinic_pump", "operational", anchor - timedelta(days=2), "history-repair")
-    for key, value in BASELINE:
+    for key, value in baseline:
         report(key, value, anchor, "baseline")
 
     scheduled = (anchor + timedelta(hours=1)).isoformat()
