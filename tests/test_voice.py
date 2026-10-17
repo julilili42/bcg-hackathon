@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 import pytest
 from fastapi.testclient import TestClient
+from fastapi.responses import Response
 from starlette.websockets import WebSocketDisconnect
 from twilio.request_validator import RequestValidator
 
@@ -25,6 +26,10 @@ def client(monkeypatch):
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", TOKEN)
     monkeypatch.setenv("PUBLIC_BASE_URL", BASE)
     monkeypatch.setattr(api, "initialize", lambda: None)
+    async def synthesize(request):
+        return Response(b"MP3" + request.text.encode(), media_type="audio/mpeg")
+    monkeypatch.setattr(voice, "create_speech", AsyncMock(side_effect=synthesize))
+    voice._audio_clips.clear()
     with TestClient(api.app) as client:
         yield client
 
@@ -42,14 +47,32 @@ def prompt(text, last=True):
     return {"type": "prompt", "voicePrompt": text, "last": last}
 
 
+
+def begin(ws):
+    ws.send_json(setup())
+    greeting = ws.receive_json()
+    assert greeting["type"] == "play"
+    assert greeting["interruptible"] is False and greeting["preemptible"] is False
+    return greeting
+
+
+def spoken(client, message):
+    if message["type"] == "text":
+        return message["token"]
+    assert message["type"] == "play"
+    assert message["source"].startswith(BASE + "/twilio/audio/")
+    response = client.get(message["source"])
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/mpeg"
+    return response.content[3:].decode()
+
 def test_signed_incoming_call_twiml_and_public_origin(client):
     data = {"AccountSid": ACCOUNT, "CallSid": CALL, "From": "+15555550123"}
     response = client.post("/twilio/voice", data=data, headers=signature(BASE + "/twilio/voice", data))
     assert response.status_code == 200
     relay = ElementTree.fromstring(response.text).find("Connect/ConversationRelay")
     assert relay.attrib["url"] == "wss://waterline.example/twilio/ws"
-    assert "stored and reused" in relay.attrib["welcomeGreeting"]
-    assert relay.attrib["welcomeGreetingInterruptible"] == "none"
+    assert "welcomeGreeting" not in relay.attrib  # Azure greeting is sent through the WebSocket.
     assert relay.attrib["reportInputDuringAgentSpeech"] == "speech"
     assert "15555550123" not in response.text
     assert client.post("/twilio/voice", data=data).status_code == 403
@@ -82,13 +105,14 @@ def test_final_transcripts_reuse_core_and_unique_turn_ids(client, monkeypatch):
     handler = AsyncMock(return_value={"answer": "An unverified **community report** <source>."})
     monkeypatch.setattr(voice, "handle_turn", handler)
     with client.websocket_connect("/twilio/ws", headers=signature("wss://waterline.example/twilio/ws")) as ws:
-        ws.send_json(setup())
+        begin(ws)
         ws.send_json(prompt("provisional report", last=False))
         ws.send_json(prompt("   "))
         ws.send_json(prompt("The Alero clinic pump is broken."))
         response = ws.receive_json()
-        assert response == {"type": "text", "token": "An unverified community report &lt;source&gt;.",
-                            "last": True, "interruptible": True, "preemptible": True}
+        assert response["type"] == "play"
+        assert response["interruptible"] and response["preemptible"] and response["loop"] == 1
+        assert spoken(client, response) == "An unverified community report <source>."
         ws.send_json(prompt("Is the Alero school borehole working?"))
         ws.receive_json()
     assert handler.await_count == 2
@@ -122,14 +146,14 @@ def test_interrupt_suppresses_unsent_answer_but_finishes_report(client, monkeypa
     monkeypatch.setattr(voice, "utcnow", clock)
     monkeypatch.setattr(voice, "handle_turn", handle)
     with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
-        ws.send_json(setup())
+        begin(ws)
         ws.send_json(prompt("first report"))
         assert started.wait(3)
         ws.send_json({"type": "interrupt", "utteranceUntilInterrupt": "part of an answer"})
         ws.send_json(prompt("second question"))
         assert second_received.wait(3)
         release.set()
-        assert ws.receive_json()["token"] == "second question answer"
+        assert spoken(client, ws.receive_json()) == "second question answer"
     assert completed == ["first report", "second question"]
 
 
@@ -144,7 +168,7 @@ def test_hangup_finishes_accepted_turn_without_speaking(client, monkeypatch):
 
     monkeypatch.setattr(voice, "handle_turn", handle)
     with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
-        ws.send_json(setup())
+        begin(ws)
         ws.send_json(prompt("The Alero clinic pump is broken."))
         assert started.wait(3)
         ws.send({"type": "websocket.disconnect", "code": 1000})
@@ -156,13 +180,105 @@ def test_core_error_gives_spoken_failure_and_call_can_continue(client, monkeypat
     handler = AsyncMock(side_effect=[RuntimeError("private internal error"), {"answer": "Next answer"}])
     monkeypatch.setattr(voice, "handle_turn", handler)
     with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
-        ws.send_json(setup())
+        begin(ws)
         ws.send_json(prompt("report"))
         response = ws.receive_json()
-        assert "may already be saved" in response["token"]
-        assert "private" not in response["token"]
+        assert "may already be saved" in spoken(client, response)
+        assert "private" not in spoken(client, response)
         ws.send_json(prompt("question"))
-        assert ws.receive_json()["token"] == "Next answer"
+        assert spoken(client, ws.receive_json()) == "Next answer"
         ws.send_json({"type": "error", "description": "provider error"})
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
+
+
+def test_greeting_and_reply_use_same_azure_voice_and_expiring_media(client, monkeypatch):
+    monkeypatch.setattr(voice, "handle_turn", AsyncMock(return_value={"answer": "A pump was reported broken; unverified."}))
+    with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
+        greeting = begin(ws)
+        assert spoken(client, greeting) == voice.WELCOME
+        ws.send_json(prompt("Is the Alero clinic pump working?"))
+        reply = ws.receive_json()
+        assert spoken(client, reply) == "A pump was reported broken; unverified."
+        assert all(call.args[0].voice == "en-US-AvaMultilingualNeural" for call in voice.create_speech.await_args_list)
+        assert client.head(reply["source"]).status_code == 200
+        assert client.get(reply["source"]).headers["cache-control"] == "no-store"
+    future = voice.monotonic() + voice.AUDIO_TTL + 1
+    monkeypatch.setattr(voice, "monotonic", lambda: future)
+    assert client.get(reply["source"]).status_code == 404
+    assert not voice._audio_clips
+
+
+def test_audio_cache_is_bounded_and_urls_contain_no_transcripts(client, monkeypatch):
+    monkeypatch.setattr(voice, "AUDIO_LIMIT", 2)
+    first = voice.cache_audio(b"first")
+    second = voice.cache_audio(b"second")
+    third = voice.cache_audio(b"third")
+    assert len(voice._audio_clips) == 2
+    assert client.get(f"/twilio/audio/{first}.mp3").status_code == 404
+    assert client.get(f"/twilio/audio/{second}.mp3").content == b"second"
+    assert client.get(f"/twilio/audio/{third}.mp3").content == b"third"
+    assert len(third) >= 40
+
+
+def test_azure_failure_uses_spoken_fallback_without_losing_answer(client, monkeypatch):
+    from fastapi import HTTPException
+    monkeypatch.setattr(voice, "handle_turn", AsyncMock(return_value={"answer": "Your unverified report was saved."}))
+    with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
+        begin(ws)
+        monkeypatch.setattr(voice, "create_speech", AsyncMock(side_effect=HTTPException(503, "synthetic Azure outage")))
+        ws.send_json(prompt("The Alero clinic pump is broken."))
+        reply = ws.receive_json()
+        assert reply["type"] == "text" and "report was saved" in reply["token"]
+        assert "synthetic Azure outage" not in reply["token"]
+
+
+def test_interrupt_during_azure_generation_discards_audio_and_processes_next_turn(client, monkeypatch):
+    started = threading.Event()
+    cancelled = threading.Event()
+    async def synthesize(request):
+        if request.text == "first answer":
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+        return Response(b"MP3" + request.text.encode(), media_type="audio/mpeg")
+    monkeypatch.setattr(voice, "create_speech", AsyncMock(side_effect=synthesize))
+    handler = AsyncMock(side_effect=[{"answer": "first answer"}, {"answer": "second answer"}])
+    monkeypatch.setattr(voice, "handle_turn", handler)
+    with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
+        begin(ws)
+        ws.send_json(prompt("first report"))
+        assert started.wait(3)
+        ws.send_json({"type": "interrupt"})
+        ws.send_json(prompt("second question"))
+        assert spoken(client, ws.receive_json()) == "second answer"
+        assert cancelled.wait(3)
+    assert handler.await_count == 2
+    assert not any(content == b"MP3first answer" for _, content in voice._audio_clips.values())
+
+
+def test_hangup_cancels_only_pending_speech(client, monkeypatch):
+    started, cancelled = threading.Event(), threading.Event()
+    async def synthesize(request):
+        if request.text == "Saved report answer":
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+        return Response(b"MP3" + request.text.encode(), media_type="audio/mpeg")
+    handler = AsyncMock(return_value={"answer": "Saved report answer"})
+    monkeypatch.setattr(voice, "handle_turn", handler)
+    monkeypatch.setattr(voice, "create_speech", AsyncMock(side_effect=synthesize))
+    with client.websocket_connect("/twilio/ws", headers=signature(BASE + "/twilio/ws")) as ws:
+        begin(ws)
+        ws.send_json(prompt("The Alero clinic pump is broken."))
+        assert started.wait(3)
+        ws.send({"type": "websocket.disconnect", "code": 1000})
+        assert cancelled.wait(3)
+    assert handler.await_count == 1
+    assert not any(content == b"MP3Saved report answer" for _, content in voice._audio_clips.values())

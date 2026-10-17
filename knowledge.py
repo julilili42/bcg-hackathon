@@ -45,8 +45,8 @@ def initialize():
         c.create_payload_index(COLLECTION, field, models.PayloadSchemaType.KEYWORD, wait=True)
 
 
-def ingest(payload):
-    point_id = str(uuid5(NAMESPACE_URL, f"waterline:{payload['record_type']}:{payload['source_id']}:{payload['chunk_index']}"))
+def ingest(payload, point_id=None):
+    point_id = point_id or str(uuid5(NAMESPACE_URL, f"waterline:{payload['record_type']}:{payload['source_id']}:{payload['chunk_index']}"))
     client().upsert(COLLECTION, points=[models.PointStruct(id=point_id,
         vector={"dense": dense(payload["text"]),
                 "bm25": models.Document(text=payload["text"], model=BM25_MODEL)},
@@ -64,7 +64,8 @@ def store_facts(facts, message, user_id, turn_id, received_at):
 
 def payload_filter(asset_id=None, village=None, attribute=None):
     fields = {"asset_id": asset_id, "village": village, "attribute": attribute}
-    conditions = [models.FieldCondition(key=k, match=models.MatchValue(value=v))
+    conditions = [models.FieldCondition(key=k, match=(models.MatchAny(any=v) if isinstance(v, list)
+                                                    else models.MatchValue(value=v)))
                   for k, v in fields.items() if v]
     return models.Filter(must=conditions) if conditions else None
 

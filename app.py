@@ -1,25 +1,40 @@
 """Trusted text API boundary plus a thin incoming-call adapter."""
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from graph import ConfigurationError, handle_turn
+import infrastructure as db
 from knowledge import initialize, utcnow
 from voice import router as voice_router
+from speech import router as speech_router
 
 
 @asynccontextmanager
 async def lifespan(app):
+    if db.enabled():
+        await run_in_threadpool(db.initialize)
     await run_in_threadpool(initialize)
     yield
 
 
 app = FastAPI(title="WaterLine — synthetic text demo", lifespan=lifespan)
 app.include_router(voice_router)
+app.include_router(speech_router)
+WEB = Path(__file__).with_name("web")
+app.mount("/demo-assets", StaticFiles(directory=WEB), name="demo-assets")
+
+
+@app.get("/demo", include_in_schema=False)
+async def browser_voice_demo():
+    return FileResponse(WEB / "voice.html")
 
 
 class Turn(BaseModel):

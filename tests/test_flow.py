@@ -138,11 +138,11 @@ def test_api_clock_missing_information_and_safety(monkeypatch):
     monkeypatch.setattr(g, "llm", lambda: model)
     monkeypatch.setattr(kb, "hybrid_search", lambda *args: [])
     result = asyncio.run(g.handle_turn("Is water safe?", "u", "t", "2026-10-16T08:00:00Z"))
-    assert "don't have verified water-quality" in result["answer"]
+    assert "can't confirm the water is safe" in result["answer"]
     model.ainvoke.assert_not_called()
     state = dict(interpretation=g.Interpretation(intent="query", query="Working?"),
                  stored_ids=[], retrieved=[], turn_id="t", received_at="2026-10-16T08:00:00Z")
-    assert "don't have a reliable" in asyncio.run(g.respond(state))["answer"]
+    assert "don't have a recent report" in asyncio.run(g.respond(state))["answer"]
 
 
 def test_configuration_failure_is_actionable(monkeypatch):
@@ -232,3 +232,30 @@ def test_real_qdrant_smoke(monkeypatch):
         assert not second["stored_fact_ids"]
     finally:
         kb.client().delete(kb.COLLECTION, models.PointIdsList(points=first["stored_fact_ids"]), wait=True)
+
+
+def test_registered_uuid_and_legacy_document_ids_share_location_filter(monkeypatch):
+    c = Mock()
+    c.query_points.return_value.points = []
+    monkeypatch.setattr(kb, "client", lambda: c)
+    monkeypatch.setattr(kb, "dense", lambda text: [0.0] * 384)
+    ids = ["00000000-0000-0000-0000-000000000001", "alero_school_borehole"]
+    kb.hybrid_search("school history", ids, "Alero")
+    for prefetch in c.query_points.call_args.kwargs["prefetch"]:
+        fields = {condition.key: condition.match for condition in prefetch.filter.must}
+        assert fields["asset_id"].any == ids
+        assert fields["village"].value == "Alero"
+
+
+def test_graph_searches_registered_aliases_without_mutating_documents(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "synthetic-test-url")
+    pipe = dict(id="00000000-0000-0000-0000-000000000001", village="Alero",
+                aliases=["alero_school_borehole", "Alero School pipe"])
+    monkeypatch.setattr(g, "current_sql_evidence", lambda *args: ([], "", pipe))
+    search = Mock(return_value=[])
+    monkeypatch.setattr(kb, "hybrid_search", search)
+    asyncio.run(g.retrieve_if_needed(dict(interpretation=g.Interpretation(intent="query",
+        query="What was reported about Alero school borehole before?", query_kind="history"),
+        turn_id="read-only", received_at="2026-10-17T12:00:00Z")))
+    search.assert_called_once_with("What was reported about Alero school borehole before?",
+        [pipe["id"], "alero_school_borehole"], "Alero")

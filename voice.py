@@ -5,6 +5,8 @@ import hmac
 import logging
 import os
 import re
+import secrets
+from time import monotonic
 from html import escape
 from urllib.parse import urlsplit
 
@@ -15,13 +17,42 @@ from twilio.twiml.voice_response import VoiceResponse
 
 from graph import handle_turn
 from knowledge import utcnow
+from speech import SpeechRequest, create_speech, spoken_text
 
 router = APIRouter()
-WELCOME = (
-    "Welcome to WaterLine, an AI assistant for fictional demo water points. "
-    "Reports you share are stored and reused as unverified community information. "
-    "Please say the water point and village with each question or report."
-)
+# Transient playback only: random capability URLs, five-minute expiry, at most 64 clips.
+# Use one API worker for this small demo so the media GET shares the same memory.
+AUDIO_TTL = 300
+AUDIO_LIMIT = 64
+_audio_clips: dict[str, tuple[float, bytes]] = {}
+
+
+def prune_audio():
+    now = monotonic()
+    for clip_id, (expires, _) in list(_audio_clips.items()):
+        if expires <= now:
+            _audio_clips.pop(clip_id, None)
+
+
+def cache_audio(content):
+    prune_audio()
+    while len(_audio_clips) >= AUDIO_LIMIT:
+        _audio_clips.pop(next(iter(_audio_clips)))
+    clip_id = secrets.token_urlsafe(32)
+    _audio_clips[clip_id] = (monotonic() + AUDIO_TTL, content)
+    return clip_id
+
+
+@router.api_route("/twilio/audio/{clip_id}.mp3", methods=["GET", "HEAD"], include_in_schema=False)
+async def call_audio(clip_id: str):
+    # Twilio fetches media by URL; possession of the unguessable, expiring URL grants access.
+    prune_audio()
+    clip = _audio_clips.get(clip_id)
+    if clip is None:
+        raise HTTPException(404, "Audio clip unavailable or expired.")
+    return Response(clip[1], media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+WELCOME = "Hey WaterLine here, how can i help you?"
 
 
 def configuration():
@@ -52,7 +83,7 @@ async def incoming_call(request: Request):
     response = VoiceResponse()
     response.connect().conversation_relay(
         url=base.replace("https://", "wss://", 1) + "/twilio/ws",
-        welcome_greeting=WELCOME, welcome_greeting_interruptible="none",
+        # Azure greeting is sent as media after WebSocket setup; Google is a failure fallback.
         language="en-US", tts_provider="Google", voice="en-US-Journey-O",
         transcription_provider="Deepgram", speech_model="nova-3-general",
         interruptible="speech", report_input_during_agent_speech="speech",
@@ -105,7 +136,44 @@ async def conversation(websocket: WebSocket):
     turn = 0
     closed = False
 
+    speech_task = None
+    speech_interruptible = True
+
+    async def send_spoken(answer, expected_generation=None, interruptible=True):
+        nonlocal speech_task, speech_interruptible
+        if closed or (expected_generation is not None and generation != expected_generation):
+            return
+        spoken = spoken_text(answer)
+        clip = None
+        try:
+            speech_interruptible = interruptible
+            speech_task = asyncio.create_task(create_speech(SpeechRequest(text=spoken)))
+            response = await speech_task
+            clip = response.body
+        except asyncio.CancelledError:
+            # Only the speech request was cancelled; never cancel a committed/ongoing report.
+            return
+        except Exception as exc:
+            logging.error("Azure phone speech failed (%s); using fallback voice", type(exc).__name__)
+        finally:
+            speech_task = None
+        if closed or (expected_generation is not None and generation != expected_generation):
+            return
+        if clip:
+            clip_id = cache_audio(clip)
+            payload = {"type": "play", "source": f"{base}/twilio/audio/{clip_id}.mp3", "loop": 1,
+                       "interruptible": interruptible, "preemptible": interruptible}
+        else:
+            # Keep the call usable during an Azure outage; this uses the configured fallback TTS.
+            payload = {"type": "text", "token": escape(spoken), "last": True,
+                       "interruptible": interruptible, "preemptible": interruptible}
+        try:
+            await websocket.send_json(payload)
+        except (WebSocketDisconnect, RuntimeError, OSError):
+            pass
+
     async def process_turns():
+        await send_spoken(WELCOME, interruptible=False)
         while True:
             item = await queue.get()
             if item is None:
@@ -118,14 +186,7 @@ async def conversation(websocket: WebSocket):
                 # Exception messages can contain provider request bodies; do not log transcripts.
                 logging.error("Phone turn failed (%s), turn=%s", type(exc).__name__, turn_number)
                 answer = "I couldn't complete that request. Your report may already be saved. Please try again later."
-            if not closed and generation == output_generation:
-                # Twilio supports SSML. Escape model text so sources cannot inject speech markup.
-                spoken = escape(answer.replace("**", "").replace("`", ""))
-                try:
-                    await websocket.send_json({"type": "text", "token": spoken, "last": True,
-                                               "interruptible": True, "preemptible": True})
-                except (WebSocketDisconnect, RuntimeError, OSError):
-                    pass
+            await send_spoken(answer, expected_generation=output_generation)
 
     worker = asyncio.create_task(process_turns())
     try:
@@ -138,6 +199,8 @@ async def conversation(websocket: WebSocket):
             if kind == "interrupt":
                 # Twilio stops playback. Suppress unsent output, without cancelling writes.
                 generation += 1
+                if speech_task is not None and speech_interruptible:
+                    speech_task.cancel()
             elif kind == "prompt" and message.get("last") is True:
                 text = message.get("voicePrompt")
                 if not isinstance(text, str) or len(text) > 5000:
@@ -147,6 +210,8 @@ async def conversation(websocket: WebSocket):
                     continue
                 turn += 1
                 generation += 1
+                if speech_task is not None and speech_interruptible:
+                    speech_task.cancel()
                 try:
                     queue.put_nowait((text, turn, utcnow(), generation))
                 except asyncio.QueueFull:
@@ -166,6 +231,8 @@ async def conversation(websocket: WebSocket):
         await websocket.close(code=1008)
     finally:
         closed = True
+        if speech_task is not None:
+            speech_task.cancel()
         # Finish already received final turns even on hangup. Threaded Qdrant writes
         # cannot be safely cancelled; suppress output instead of rolling back facts.
         await queue.put(None)

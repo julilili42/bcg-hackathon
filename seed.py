@@ -1,5 +1,6 @@
 """All places, assets, notices and observations below are FICTIONAL demo fixtures."""
 from knowledge import initialize, ingest
+import infrastructure as db
 
 ASSETS = [
     ("alero_clinic_pump", "Alero", "Alero clinic hand pump"),
@@ -13,14 +14,19 @@ ASSETS = [
 
 def seed():
     initialize()
+    if db.enabled():
+        from seed_infrastructure import seed as seed_registry
+        seed_registry()
     ids = []
     for asset, village, name in ASSETS:
-        common = dict(asset_id=asset, village=village, asset_name=name,
+        pipe = db.resolve_pipe(asset)["pipe"] if db.enabled() else None
+        common = dict(asset_id=str(pipe["id"]) if pipe else asset, village=village, asset_name=name,
             record_type="document_chunk", user_id=None, synthetic=True,
             source_type="community_document", verification_status="unverified", chunk_index=0)
-        ids.append(ingest({**common, "source_id": f"demo-registry-{asset}",
-            "text": f"SYNTHETIC DEMO REGISTRY: {name} is a fictional water point in fictional {village}. No coordinates or water-quality evidence are available.",
-            "document_date": "2023-01-01T00:00:00Z"}))
+        if not db.enabled():
+            ids.append(ingest({**common, "source_id": f"demo-registry-{asset}",
+                "text": f"SYNTHETIC DEMO REGISTRY: {name} is a fictional water point in fictional {village}. No coordinates or water-quality evidence are available.",
+                "document_date": "2023-01-01T00:00:00Z"}))
         for index, day in enumerate(("2026-10-10", "2026-10-15")):
             if asset == "alero_market_tap":
                 day = "2023-01-02"

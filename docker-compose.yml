@@ -2,8 +2,24 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.15.5
     ports:
-      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
     volumes:
       - waterline_data:/qdrant/storage
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: waterline_live
+      POSTGRES_USER: waterline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-waterline}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - waterline_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U waterline -d waterline_live"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
 volumes:
   waterline_data:
+  waterline_postgres:

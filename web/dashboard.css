@@ -1,0 +1,21 @@
+.waterline-sync{display:flex;align-items:center;gap:9px;color:#65828a;font:500 12px system-ui;margin:2px 0 18px;letter-spacing:.2px}
+.waterline-sync i{position:relative;display:inline-block;width:7px;height:7px;background:#10a39b;border-radius:50%}
+.waterline-sync i:after{content:"";position:absolute;inset:-4px;border:1px solid #10a39b;border-radius:50%;animation:waterline-ping 2.8s ease-out infinite}
+.waterline-sync strong{color:#128079;letter-spacing:1px;font-size:10px}
+.waterline-feed{display:grid;gap:10px;margin:4px 0 20px}
+.waterline-change{position:relative;overflow:hidden;border:1px solid #beddd8;border-left:4px solid var(--change-color,#0e9990);border-radius:14px;padding:15px 18px;background:linear-gradient(105deg,#e9f7f3,#f8fcfb);color:#183e49;font-family:system-ui;animation:waterline-enter .65s cubic-bezier(.2,.7,.2,1) both,waterline-glow 2s ease-out}
+.waterline-change:after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 20%,#ffffffa0 48%,transparent 75%);transform:translateX(-110%);animation:waterline-sweep 1.1s ease-out .1s both;pointer-events:none}
+.waterline-change{animation-delay:calc(0s - var(--elapsed,0s))}.waterline-change:after{animation-delay:calc(.1s - var(--elapsed,0s))}.waterline-change.is-stale,.waterline-change.is-stale:after{animation:none!important}
+.waterline-change-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.waterline-change-head strong{font-size:14px}.waterline-change-head time{font-size:11px;color:#52737b;white-space:nowrap}
+.waterline-change-meta{font-size:11px;color:#587a82;margin-bottom:10px}.waterline-change-status{display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+.waterline-status{border:1px solid #aec6c6;border-radius:7px;padding:4px 9px;font-weight:600}.waterline-status.new{color:var(--change-color);border-color:var(--change-color);background:#fff9}
+.waterline-change-note{font-size:11px;color:#52737b;margin-top:9px}
+.st-key-live_metrics [data-testid="stMetric"]{border-radius:14px;transition:background-color .3s,box-shadow .3s}
+@keyframes waterline-enter{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes waterline-sweep{to{transform:translateX(110%)}}
+@keyframes waterline-glow{from{box-shadow:0 0 0 5px #14a39b25}to{box-shadow:0 0 0 0 #14a39b00}}
+@keyframes waterline-ping{0%{transform:scale(.5);opacity:.6}90%,100%{transform:scale(1.8);opacity:0}}
+@keyframes waterline-metric{0%{background:#14a39b20;box-shadow:0 0 0 4px #14a39b15}100%{background:transparent;box-shadow:none}}
+@media(prefers-color-scheme:dark){.waterline-change{background:linear-gradient(105deg,#153431,#1d292b);border-color:#365a56;color:#e0efed}.waterline-change-meta,.waterline-change-note,.waterline-change-head time{color:#9dbbb8}.waterline-status.new{background:#ffffff10;color:#9dd9d2}}
+@media(prefers-reduced-motion:reduce){.waterline-change,.waterline-change:after,.waterline-sync i:after,.st-key-live_metrics [data-testid="stMetric"]{animation:none!important;transition:none!important}}

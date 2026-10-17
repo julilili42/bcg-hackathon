@@ -11,3 +11,5 @@ httpx==0.28.1
 twilio==9.12.0
 python-multipart==0.0.32
 websockets==16.1.1
+psycopg[binary]==3.3.6
+streamlit==1.66.0
