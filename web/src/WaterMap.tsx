@@ -1,11 +1,12 @@
-// Leaflet map of the water points, the villages and the dangers reported on the way between them.
+// Leaflet map of the water points, the villages and the messages: every status report is a badge next to its water point,
+// every danger on the way a warning triangle on the red route between the village and the water point.
 // `focus` = the place a call just named: the map flies there. A water point opens its popup, and when it is down the nearest
 // working one is shown as the alternative (same straight-line walk as gateway/graph.py). A village alone shows its two nearest
 // water points; a village and a water point show the way between them. Without focus it shows all points. OpenStreetMap tiles.
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { COLOR, HAZARD_LABEL, age, type Hazard, type Place, type Village, type Waterpoint } from "./api";
+import { COLOR, HAZARD_LABEL, age, type HazardKind, type LogEvent, type Place, type Status, type Village, type Waterpoint } from "./api";
 
 // Leaflet's flyTo follows a flight path that overshoots the target zoom and comes back when the pan is short, and it
 // scales the markers up to 8x on the way. glide() moves zoom and centre monotonically with one ease-in-out and
@@ -43,11 +44,15 @@ const distanceKm = (a: { lat: number; lon: number }, b: { lat: number; lon: numb
   const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 };
-const TRIANGLE = '<svg viewBox="0 0 30 27" width="30" height="27" aria-hidden="true"><path d="M15 2 28.5 25.5h-27z" fill="#d92d20" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M15 10v7" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="15" cy="21" r="1.6" fill="#fff"/></svg>';
-const hazardPopup = (hs: Hazard[]) =>  // newest first; several reports on one way are counted
-  `<b>${HAZARD_LABEL[hs[0].kind] ?? "Danger"} on the way</b> · ${esc(hs[0].village)} → ${esc(hs[0].point)}`
-  + `<br><small>${esc(hs[0].body.slice(0, 90))}</small>`
-  + `<br><small>Anonymous resident · ${age(hs[0].ts)}${hs.length > 1 ? ` · ${hs.length} reports` : ""}</small>`;
+export const TRIANGLE = '<svg viewBox="0 0 30 27" width="30" height="27" aria-hidden="true"><path d="M15 2 28.5 25.5h-27z" fill="#d92d20" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M15 10v7" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="15" cy="21" r="1.6" fill="#fff"/></svg>';
+// one symbol per message; several at one place fan out, so each new one is visible
+const GLYPH: Record<Status, string> = { ok: "M6 10.5l3 3 5-6", broken: "M6.5 6.5l7 7M13.5 6.5l-7 7", empty: "M6 10h8" };
+export const badge = (status: Status) => `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="${COLOR[status]}" stroke="#fff" stroke-width="2"/><path d="${GLYPH[status]}" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const said = (e: LogEvent) => `<br><small>“${esc(e.body.slice(0, 90))}”</small>`;
+const messagePopup = (e: LogEvent) => e.kind === "hazard"
+  ? `<b>${HAZARD_LABEL[e.detail as HazardKind] ?? "Danger"} on the way</b> · ${esc(e.village ?? "")} → ${esc(e.point ?? "")}${said(e)}<br><small>Anonymous resident · ${age(e.ts)}</small>`
+  : `<b>${esc(e.point ?? "")} · ${esc(e.detail ?? "")}</b>${said(e)}<br><small>${e.channel} · ${age(e.ts)}</small>`;
+const FAN = [0, 1, -1, 2, -2, 3, -3];  // k-th message at one place: 0 in the middle, then alternately either side
 const nearestTo = (v: Village, all: Waterpoint[], n: number) =>
   all.map((w) => ({ w, km: distanceKm(v, w) })).sort((a, b) => a.km - b.km).slice(0, n).map((x) => x.w);
 
@@ -57,14 +62,15 @@ const nearestWorking = (f: Waterpoint, all: Waterpoint[]) => {
   return ok.length ? ok.reduce((a, b) => (b.km < a.km ? b : a)) : null;
 };
 
-export default function WaterMap({ waterpoints, villages = [], hazards = [], focus, legend = false, className = "map" }:
-  { waterpoints: Waterpoint[]; villages?: Village[]; hazards?: Hazard[]; focus?: Place | null; legend?: boolean; className?: string }) {
+export default function WaterMap({ waterpoints, villages = [], reports = [], since = Infinity, focus, legend = false, className = "map" }:
+  { waterpoints: Waterpoint[]; villages?: Village[]; reports?: LogEvent[]; since?: number; focus?: Place | null; legend?: boolean; className?: string }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const markers = useRef<Record<number, L.CircleMarker>>({});
-  const focused = useRef<string | null | undefined>(undefined);  // "village|point"; undefined = no view set yet
+  const focused = useRef<string | null | undefined>(undefined);  // the focused message id; undefined = no view set yet
   const towns = useRef<Record<string, L.CircleMarker>>({});
-  const dangers = useRef<Record<string, { line: L.Polyline; mark: L.Marker; html: string }>>({});  // one per way, "village|point"
+  const routes = useRef<Record<string, L.Polyline>>({});  // a red line per way with a danger on it, "village|point"
+  const msgs = useRef<Record<string, { mark: L.Marker; html: string }>>({});  // one symbol per message id
   const alt = useRef<{ id: number; from: Waterpoint; km: number } | null>(null);  // the alternative shown for a down focus point
   const link = useRef<L.Polyline | null>(null);
 
@@ -78,6 +84,7 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
       lg.onAdd = () => {
         const d = L.DomUtil.create("div", "legend");
         d.innerHTML = Object.entries(COLOR).map(([k, c]) => `<i style="background:${c}"></i>${k}`).join("<br>")
+          + '<br><span class="lg-badge">' + badge("broken") + "</span>a report (one per message)"
           + '<br><i class="lg-village"></i>village a call named<br><span class="lg-hazard">' + TRIANGLE + "</span>danger on the way"
           + '<a href="/api/dashboard">dashboard</a>';
         return d;
@@ -90,7 +97,7 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
     requestAnimationFrame(fix);
     const ro = new ResizeObserver(fix);
     ro.observe(el.current!);
-    return () => { ro.disconnect(); m.remove(); map.current = null; markers.current = {}; towns.current = {}; dangers.current = {}; focused.current = undefined; };
+    return () => { ro.disconnect(); m.remove(); map.current = null; markers.current = {}; towns.current = {}; routes.current = {}; msgs.current = {}; focused.current = undefined; };
   }, [legend]);
 
   // villages: the tiles already name them, so only the focused village gets a dot (CSS: .vdot)
@@ -103,24 +110,40 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
     }
   }, [villages]);
 
-  // dangers on the way: a red dashed line from the village to the water point, a warning triangle halfway
+  // messages: a badge per status report next to its water point, a triangle per danger on its red route; new ones drop in
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    const byWay: Record<string, Hazard[]> = {};
-    for (const h of hazards) (byWay[`${h.village}|${h.point}`] ??= []).push(h);
-    for (const [key, hs] of Object.entries(byWay)) {
-      const v = villages.find((x) => x.name === hs[0].village), w = waterpoints.find((x) => x.name === hs[0].point);
-      if (!v || !w) continue;
-      const html = hazardPopup(hs), d = dangers.current[key];
-      if (d) { if (d.html !== html) { d.mark.setPopupContent(html); d.html = html; } continue; }
-      const line = L.polyline([[v.lat, v.lon], [w.lat, w.lon]], { pane: "links", color: "#d92d20", weight: 3, dashArray: "6 7", lineCap: "round", opacity: 0.85 }).addTo(m);
-      const mark = L.marker([(v.lat + w.lat) / 2, (v.lon + w.lon) / 2], { pane: "hazards", keyboard: true, title: "Danger on the way",
-        icon: L.divIcon({ html: TRIANGLE, className: "hz", iconSize: [30, 27], iconAnchor: [15, 22] }) })
-        .bindPopup(html, { closeButton: false, autoPan: false, autoClose: false, className: "hz-pop" }).addTo(m);
-      dangers.current[key] = { line, mark, html };
+    const at: Record<string, LogEvent[]> = {};  // oldest first, so a symbol keeps its slot when newer ones arrive
+    for (const e of [...reports].reverse()) (at[e.kind === "hazard" ? `${e.village}|${e.point}` : `${e.point}`] ??= []).push(e);
+    for (const [key, es] of Object.entries(at)) {
+      const w = waterpoints.find((x) => x.name === es[0].point), v = villages.find((x) => x.name === es[0].village);
+      if (!w) continue;
+      const hazard = es[0].kind === "hazard";
+      if (hazard && !v) continue;
+      if (hazard && !routes.current[key])
+        routes.current[key] = L.polyline([[v!.lat, v!.lon], [w.lat, w.lon]], { pane: "links", color: "#d92d20", weight: 3, dashArray: "6 7", lineCap: "round", opacity: 0.85 }).addTo(m);
+      es.slice(-FAN.length).forEach((e, k) => {
+        const html = messagePopup(e), had = msgs.current[e.id];
+        if (had) { if (had.html !== html) { had.mark.setPopupContent(html); had.html = html; } return; }
+        const fresh = Number(e.id) > since ? " msg-new" : "";
+        let pos: [number, number], icon: L.DivIcon;
+        if (hazard) {  // along the route, around its middle
+          const t = Math.min(0.85, Math.max(0.15, 0.5 + 0.13 * FAN[k]));
+          pos = [v!.lat + (w.lat - v!.lat) * t, v!.lon + (w.lon - v!.lon) * t];
+          icon = L.divIcon({ html: TRIANGLE, className: "hz" + fresh, iconSize: [30, 27], iconAnchor: [15, 22] });
+        } else {  // on a small circle around the water point, starting above it
+          const a = -Math.PI / 2 + FAN[k] * 0.75;
+          pos = [w.lat, w.lon];
+          icon = L.divIcon({ html: badge(e.detail && e.detail in COLOR ? (e.detail as Status) : "broken"), className: "msg" + fresh, iconSize: [20, 20],
+                             iconAnchor: [10 - Math.round(24 * Math.cos(a)), 10 - Math.round(24 * Math.sin(a))] });
+        }
+        const mark = L.marker(pos, { pane: "hazards", keyboard: true, title: hazard ? "Danger on the way" : `Report: ${e.point} ${e.detail}`, icon })
+          .bindPopup(html, { closeButton: false, autoPan: false, autoClose: false, className: "hz-pop" }).addTo(m);
+        msgs.current[e.id] = { mark, html };
+      });
     }
-  }, [hazards, villages, waterpoints]);
+  }, [reports, villages, waterpoints, since]);
 
   // markers follow the data; the whole set is fitted once, and again whenever the focus goes away
   useEffect(() => {
@@ -134,7 +157,7 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
       else markers.current[w.id] = L.circleMarker([w.lat, w.lon], { radius: 9, weight: 3, fillOpacity: 0.6, ...style })
         .bindPopup(html, { closeButton: false, autoPan: false, autoClose: false }).addTo(m);
     }
-    const id = focus ? `${focus.village?.name ?? ""}|${focus.point?.name ?? ""}` : null;
+    const id = focus ? focus.id : null;
     if (id === focused.current) return;  // first run: focused is undefined, so the view is always set once
     const first = focused.current === undefined;
     if (first) {  // the overview of all points is as far out as it goes, and the view stays around them
@@ -146,14 +169,15 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
     // the view comes first: Leaflet projects markers only once the map has a view, and setStyle on an unprojected marker throws
     link.current?.remove(); link.current = null;
     for (const mk of Object.values(markers.current)) mk.closePopup();
-    for (const d of Object.values(dangers.current)) d.mark.closePopup();
+    for (const d of Object.values(msgs.current)) d.mark.closePopup();
     const mark = (t: L.CircleMarker | undefined, on: boolean) => t?.getElement()?.classList.toggle("on", on);
     for (const t of Object.values(towns.current)) mark(t, false);
     if (focus) {
       const { village, point } = focus;
       const near = point ? nearestWorking(point, waterpoints) : null;
       alt.current = near && point ? { id: near.w.id, from: point, km: near.km } : null;
-      const danger = village && point ? dangers.current[`${village.name}|${point.name}`] : undefined;
+      const own = msgs.current[focus.id];  // the message's own symbol, when it is a report
+      const danger = village && point ? routes.current[`${village.name}|${point.name}`] : undefined;
       // a water point (and its alternative), a danger (and the working water point the reply named instead, like graph.avoid),
       // or a village's two nearest water points
       const instead = danger ? nearestTo(village!, waterpoints.filter((w) => w.status === "ok" && w.id !== point!.id), 1) : [];
@@ -174,9 +198,11 @@ export default function WaterMap({ waterpoints, villages = [], hazards = [], foc
         other.setStyle({ radius: hi ? 14 : 7, weight: hi ? 4 : 2, fillOpacity: hi ? 0.95 : 0.6 });
       }
       const open = () => {
+        if (focused.current !== id) return;  // a newer message came in while the map was still moving here
         if (village) mark(towns.current[village.name], true);
-        if (danger) { danger.mark.openPopup(); instead.forEach((w) => markers.current[w.id]?.openPopup()); }
-        else shown.forEach((w) => markers.current[w.id]?.openPopup());
+        if (own) own.mark.openPopup();
+        if (danger) instead.forEach((w) => markers.current[w.id]?.openPopup());
+        else shown.filter((w) => !own || w.id !== point?.id).forEach((w) => markers.current[w.id]?.openPopup());
       };
       if (first) open(); else m.once("moveend", open);
     } else {

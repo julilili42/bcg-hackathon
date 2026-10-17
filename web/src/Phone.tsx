@@ -2,9 +2,9 @@
 // Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de, 4 fr). Middle: the map, right: the live water points.
 import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
-import { HAZARD_LABEL, age, useEvents, useFocus, type LogEvent } from "./api";
+import { COLOR, HAZARD_LABEL, age, isReport, useEvents, useFocus, useSince, type HazardKind, type LogEvent, type Picked, type Status } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
-import WaterMap from "./WaterMap";
+import WaterMap, { TRIANGLE, badge } from "./WaterMap";
 
 type Line = string | [cls: "big" | "blink", text: string];
 type Lcd = { lines: Line[]; status: string; soft: string; on: boolean };
@@ -102,7 +102,10 @@ export default function Phone() {
   const agoS = (ts: string) => (Date.now() - new Date(String(ts).replace(" ", "T") + "Z").getTime()) / 1000;
   const hotPoints = data.waterpoints.filter((w) => agoS(w.updated) < HOT_S).sort((a, b) => agoS(a.updated) - agoS(b.updated));
   const hot = new Set(hotPoints.map((w) => w.id));
-  const focus = useFocus(data);  // the map goes to the place the newest call named and stays there until the next one
+  const [picked, setPicked] = useState<Picked | null>(null);  // a message the viewer clicked, until a newer one arrives
+  const focus = useFocus(data, picked);  // the map goes to the newest message's place and stays there until the next one
+  const since = useSince(data);
+  const reports = data.events.filter(isReport);  // one message per status or hazard report, newest first
   const debug = location.search.includes("debug"); // ?debug=1 shows the hit areas
 
   // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
@@ -153,12 +156,27 @@ export default function Phone() {
       </div>
 
       <section className="mapbox" aria-label="Map">
-        <WaterMap waterpoints={data.waterpoints} villages={data.villages} hazards={data.hazards} focus={focus} className="panel-map" />
+        <WaterMap waterpoints={data.waterpoints} villages={data.villages} reports={reports} since={since} focus={focus} className="panel-map" />
       </section>
 
       <aside className="panel" aria-label="Live data">
+        <h2>Reports <small>{reports.length}</small></h2>
+        <div className="scroll feed">
+          {reports.length === 0 && <p className="empty-feed">No reports yet. Call or text the number.</p>}
+          {reports.map((e) => (
+            <button key={e.id} className={`msg-card${e.kind === "hazard" ? " hazard" : ""}${Number(e.id) > since ? " fresh" : ""}${focus?.id === e.id ? " on" : ""}`}
+              onClick={() => setPicked({ id: e.id, after: Math.max(0, ...data.events.map((x) => Number(x.id))) })}>
+              <span className="ic" dangerouslySetInnerHTML={{ __html: e.kind === "hazard" ? TRIANGLE : badge(e.detail && e.detail in COLOR ? (e.detail as Status) : "broken") }} />
+              <span className="tx">
+                <span className="t">{e.kind === "hazard" ? `${HAZARD_LABEL[e.detail as HazardKind] ?? "Danger"} on the way` : `${e.point} · ${e.detail}`}</span>
+                <span className="sub">{e.kind === "hazard" ? `${e.village} → ${e.point} · anonymous` : `${e.village} · ${e.channel}`} · {age(e.ts)}</span>
+                <span className="said">“{e.body}”</span>
+              </span>
+            </button>
+          ))}
+        </div>
         <h2>Water points</h2>
-        <div className="scroll"><table className="wp">
+        <div className="scroll wpbox"><table className="wp">
           <tbody>{data.waterpoints.map((w) => (
             <tr key={w.id} className={hot.has(w.id) ? "hot" : ""}>
               <td><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}</div></td>
@@ -166,12 +184,6 @@ export default function Phone() {
             </tr>
           ))}</tbody>
         </table></div>
-        {data.hazards.length > 0 && <>
-          <h2>Dangers on the way</h2>
-          <ul className="hz-list">{data.hazards.slice(0, 4).map((h) => (
-            <li key={h.id}><div>{HAZARD_LABEL[h.kind] ?? "Danger"}</div><div className="sub">{h.village} → {h.point} · {age(h.ts)} · anonymous</div></li>
-          ))}</ul>
-        </>}
         {errors.length > 0 && <ol className="log">
           {errors.map((e, i) => <li key={i} className="error"><div className="who">{e.who}</div><div className="line">{e.text}</div></li>)}
         </ol>}

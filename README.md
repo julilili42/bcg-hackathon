@@ -44,6 +44,7 @@ Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 | Path | Does |
 |---|---|
 | `function_app.py` | Azure Functions entry: Twilio webhooks + TwiML, `/api/interact`, `/api/events` JSON, serves `web/dist` |
+| `gateway/live.py` | phone calls through Gemini native audio: Twilio media stream <-> Gemini Live, tools -> `graph.handle_turn` (`uv run -m gateway.live`, :7072) |
 | `gateway/graph.py` | the brain: LangGraph with four steps. interpret (Claude structured output, keywords without a key) → store (Qdrant evidence + status table) → retrieve (hybrid search + exact status history) → respond (grounded answer in the caller's language, nearest working point) |
 | `gateway/knowledge.py` | one Qdrant collection: dense (FastEmbed bge-small) + BM25 sparse vectors, RRF fusion, evidence rules (newest per asset, conflicts within a day, verified dissent). `uv run -m gateway.knowledge` seeds it |
 | `gateway/texts.py` | everything the line says, in sw/en/de/fr, and the keyword lists of the offline fallback (status, hazard kinds, language) |
@@ -55,6 +56,7 @@ Browser: /api/phone  /api/dashboard  /api/map   (React, web/)
 | `data/villages.csv` | 29 real villages around Muyinga with coordinates (OpenStreetMap): where a caller says they are, where a danger's way starts |
 | `web/` | React + TypeScript (Vite): `src/Phone.tsx` (Nokia 3310 photo, real Twilio call, live database), `src/Dashboard.tsx`, `src/Map.tsx`, `src/WaterMap.tsx` (the Leaflet map all pages share). `npm run dev` rebuilds on save |
 | `tests/test_graph.py` | the brain with Claude and Qdrant mocked: `uv run pytest -q` (`RUN_QDRANT_SMOKE=1` adds a real Qdrant roundtrip) |
+| `tests/test_live.py` | the voice bridge with a scripted Gemini session and a fake Twilio media stream |
 | `docker-compose.yml` | Qdrant on 127.0.0.1:6333, data in a named volume |
 | `scripts/smoke.sh` | simulates Twilio against the local host |
 | `scripts/tunnel.sh` | starts a cloudflared tunnel and calls `set_webhooks.sh` with its URL |
@@ -108,6 +110,34 @@ percent of the photo (measured by colour detection, see git history for the scri
 Nokia Cellphone FC (Zeh Fernando, free for personal use). The right side is the live database:
 water points with status and age, the latest dangers on the way, plus the last calls, refreshed every 2 s.
 
+## Calls through Gemini native audio
+
+With `GEMINI_API_KEY` set, phone calls are a live conversation with Gemini 2.5 Flash native audio
+(`GEMINI_MODEL`, default `gemini-2.5-flash-native-audio-preview-12-2025`; voice `GEMINI_VOICE`, default `Kore`):
+
+```
+Call ──▶ Twilio ──▶ :7072/voice  <Connect><Stream>  ──WebSocket /media──▶ gateway/live.py ◀──▶ Gemini Live
+                    8 kHz mu-law  ◀────────────────── 16 kHz PCM in / 24 kHz PCM out ──┘   │ tool calls
+                                         graph.handle_turn (same brain as SMS) ◀──────────────┘
+```
+
+- No language menu: Gemini hears the caller's language (Kirundi, French, Swahili, English, German) and answers in it.
+- It records nothing itself. It calls tools that run the brain with an interpretation it already made:
+  `report_water_point`, `report_hazard`, `ask`, and `end_call` (hangs up once the goodbye has been played).
+  So the water point table, the hazards, the evidence store and the map update exactly as for SMS; the tool's
+  answer is what Gemini says, in the caller's words. Unknown names come back as "not understood" and it asks again.
+- The caller talking over the answer clears Twilio's queued audio (`interrupted` -> `clear`).
+- Run it next to the Function, then the tunnel (two quick tunnels: SMS to :7071, calls to :7072):
+
+```bash
+uv run -m gateway.live    # :7072, reads local.settings.json
+scripts/tunnel.sh         # with GEMINI_API_KEY set: the number's and the browser phone's voice webhook -> the bridge
+```
+
+Without `GEMINI_API_KEY`, `tunnel.sh` keeps calls on the classic flow below. Azure Functions (Python) cannot hold a
+WebSocket, hence the second server; for Azure it would be an App Service or Container App. Audio sessions are
+limited to 15 minutes by the Live API.
+
 ## The map follows the caller
 
 Every turn is logged with the village and water point it named (`events.village`, `events.point`). The map
@@ -130,8 +160,9 @@ which does not move the tiles when the zoom stays the same.
 | `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION` | evidence store, default `http://localhost:6333` / none / `muyinga_knowledge`. Unreachable Qdrant: the status table still answers, reports are not kept as evidence |
 | `SQL_CONN` | optional; without it SQLite `events.db` |
 | `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_APP_SID`, `TWILIO_NUMBER` | browser phone, written by `scripts/phone_setup.py` |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_VOICE` | optional; calls go through Gemini native audio (`gateway/live.py`), see above. From aistudio.google.com |
 
-## Call flow
+## Call flow (classic, without Gemini)
 
 1. First call from a number: language menu, 1 Swahili, 2 English, 3 German, 4 French. The choice is stored
    per number (`callers` table); later calls skip the menu. A digit during the question switches.

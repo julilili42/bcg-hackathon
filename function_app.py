@@ -53,16 +53,11 @@ def language_menu_again():
 def finish(req, text, lang, sender, turn, interpretation=None):
     """Store + answer, then offer another report; hang up if no key is pressed."""
     r = graph.handle_turn(text, graph.anonymous(sender), turn, lang, interpretation=interpretation)
-    record("voice", sender, lang, text, r)
+    graph.log_turn("voice", sender, lang, text, r)
     answer = r["answer"]
     return twiml(say(req, answer, lang)
                  + digits(req, say(req, T[lang]["another"], lang), f"/api/voice/another?lang={lang}")
                  + say(req, T[lang]["bye"], lang) + "<Hangup/>")
-
-
-def record(channel, sender, lang, text, r):
-    """Log the turn with its place, so the map can follow it. A hazard report never shows the caller's number."""
-    db.log(channel, graph.anonymous(sender) if r["hazard"] else sender, lang, text, r["answer"], r["village"], r["point"])
 
 
 def signed(req):
@@ -150,7 +145,7 @@ def sms(req):
     f = req.form
     text, sender = f.get("Body", ""), f.get("From", "?")
     r = graph.handle_turn(text, graph.anonymous(sender), f.get("MessageSid") or str(uuid.uuid4()), channel="sms")
-    record("sms", sender, r["lang"], text, r)
+    graph.log_turn("sms", sender, r["lang"], text, r)
     return twiml(f"<Message>{html.escape(r['answer'])}</Message>")
 
 
@@ -165,7 +160,7 @@ def interact(req):
     user, turn = str(body.get("user_id") or "api")[:100], str(body.get("turn_id") or uuid.uuid4())[:100]
     lang = body.get("lang") if body.get("lang") in T else None
     r = graph.handle_turn(message, user, turn, lang, channel="api")
-    record("api", user, r["lang"], message, r)
+    graph.log_turn("api", user, r["lang"], message, r)
     return func.HttpResponse(json.dumps(r, default=str), mimetype="application/json")
 
 

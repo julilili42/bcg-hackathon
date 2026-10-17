@@ -8,7 +8,9 @@ CREATE TABLE events (
   body    NVARCHAR(500),     -- what the caller said / wrote
   reply   NVARCHAR(500),     -- what we answered
   village NVARCHAR(80),      -- the place the turn was about: the map follows the newest
-  point   NVARCHAR(80)
+  point   NVARCHAR(80),
+  kind    VARCHAR(8),        -- 'status' | 'hazard' | 'query': one message in the feed per status or hazard
+  detail  VARCHAR(12)        -- the status (ok/broken/empty) or the hazard kind
 );
 CREATE TABLE waterpoints (
   id      INT IDENTITY PRIMARY KEY,

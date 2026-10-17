@@ -317,6 +317,22 @@ def anonymous(sender):
     return "caller-" + hashlib.sha256(sender.encode()).hexdigest()[:16]
 
 
+def kind(i):
+    """(kind, detail) of a turn for the message feed: what was recorded, else whether it asked something."""
+    f = next((f for f in i["facts"] if f["asset_id"]), None)
+    if f and f["attribute"] == "route_hazard":
+        return "hazard", f["value"]
+    if f and f["attribute"] == "operational_status" and f["value"] in STATUS:
+        return "status", STATUS[f["value"]]
+    return ("query", None) if i["query"] else (None, None)
+
+
+def log_turn(channel, sender, lang, text, r):
+    """Log a handled turn with its place, so the map can follow it. A hazard report never shows the caller's number."""
+    db.log(channel, anonymous(sender) if r["hazard"] else sender, lang, text, r["answer"], r["village"], r["point"],
+           *kind(r["interpretation"]))
+
+
 def handle_turn(message, user_id, turn_id, lang=None, received_at=None, interpretation=None, channel="voice"):
     """The whole loop. lang None (SMS, API) = answer in the language of the message. -> dict with answer and lang"""
     r = graph.invoke(dict(message=message, user_id=user_id, turn_id=turn_id, lang=lang, channel=channel,
