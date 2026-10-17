@@ -1,0 +1,15 @@
+{
+  "text": "SYNTHETIC DEMO COMMUNITY NOTICE — Alero school borehole extra collection session. Published on October 17, 2026 by the fictional Alero village water committee. An extra community water collection session is planned for tomorrow morning, October 18, 2026, at the Alero school borehole. A caretaker will be at the school gate to help residents find the collection queue. Residents should bring their own clean water container and enter through the school gate. There is no collection fee for this extra session. Residents needing help carrying containers can ask the caretaker at the gate for assistance. This notice announces a planned collection session, not a new observation that the pump is working. The latest operational condition must be checked separately. This is an unverified fictional community announcement, not a verified official notice. It provides no drinking-water quality test or safety assurance.",
+  "record_type": "document_chunk",
+  "source_id": "demo-outreach-alero-collection-notice-v1",
+  "chunk_index": 0,
+  "source_type": "community_document",
+  "verification_status": "unverified",
+  "user_id": null,
+  "village": "Alero",
+  "asset_id": "ff50877c-99aa-5dbb-a163-0a1d6b643a50",
+  "asset_name": "Alero school borehole",
+  "document_date": "2026-10-17T07:46:18Z",
+  "synthetic": true,
+  "demo_scenario": "simulated_outbound_news"
+}
