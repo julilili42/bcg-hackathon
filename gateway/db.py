@@ -23,9 +23,10 @@ def _connect():
     if _ready:
         return c
     c.execute("""CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT, village TEXT, point TEXT)""")
+        ts TEXT DEFAULT CURRENT_TIMESTAMP, channel TEXT, sender TEXT, lang TEXT, body TEXT, reply TEXT, village TEXT, point TEXT,
+        kind TEXT, detail TEXT)""")
     have = {r[1] for r in c.execute("PRAGMA table_info(events)")}
-    for col in sorted({"village", "point"} - have):  # an events.db from before the map followed the caller
+    for col in sorted({"village", "point", "kind", "detail"} - have):  # an events.db from before the map followed the caller
         c.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT")
     c.execute("CREATE TABLE IF NOT EXISTS callers (sender TEXT PRIMARY KEY, lang TEXT)")
     c.execute("""CREATE TABLE IF NOT EXISTS waterpoints (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,17 +52,18 @@ def _top(n):  # SQL dialect difference in one place
     return (f"SELECT TOP ({n})", "") if CONN else ("SELECT", f" LIMIT {n}")
 
 
-def log(channel, sender, lang, body, reply, village=None, point=None):
-    """village/point: the place the turn was about; the map follows the newest one."""
+def log(channel, sender, lang, body, reply, village=None, point=None, kind=None, detail=None):
+    """village/point: the place the turn was about; the map follows the newest one.
+    kind: status (detail ok/broken/empty) | hazard (detail harassment/blocked/animals/other) | query | None (not understood)."""
     with _connect() as c:
-        c.execute("INSERT INTO events(channel,sender,lang,body,reply,village,point) VALUES (?,?,?,?,?,?,?)",
-                  (channel, sender, lang, body, reply, village, point))
+        c.execute("INSERT INTO events(channel,sender,lang,body,reply,village,point,kind,detail) VALUES (?,?,?,?,?,?,?,?,?)",
+                  (channel, sender, lang, body, reply, village, point, kind, detail))
         c.commit()
 
 
 def events(n=100):
     sel, lim = _top(n)
-    keys = ["id", "ts", "channel", "sender", "lang", "body", "reply", "village", "point"]
+    keys = ["id", "ts", "channel", "sender", "lang", "body", "reply", "village", "point", "kind", "detail"]
     with _connect() as c:
         rows = c.execute(f"{sel} {','.join(keys)} FROM events ORDER BY id DESC{lim}").fetchall()
     return [{k: None if v is None else str(v) for k, v in zip(keys, r)} for r in rows]
