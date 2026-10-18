@@ -48,10 +48,10 @@ export const TRIANGLE = '<svg viewBox="0 0 30 27" width="30" height="27" aria-hi
 // one symbol per message; several at one place fan out, so each new one is visible
 const GLYPH: Record<Status, string> = { ok: "M6 10.5l3 3 5-6", broken: "M6.5 6.5l7 7M13.5 6.5l-7 7", empty: "M6 10h8" };
 export const badge = (status: Status) => `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="${COLOR[status]}" stroke="#fff" stroke-width="2"/><path d="${GLYPH[status]}" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-const said = (e: LogEvent) => `<br><small>“${esc(e.body.slice(0, 90))}”</small>`;
-const messagePopup = (e: LogEvent) => e.kind === "hazard"
-  ? `<b>${HAZARD_LABEL[e.detail as HazardKind] ?? "Danger"} on the way</b> · ${esc(e.village ?? "")} → ${esc(e.point ?? "")}${said(e)}<br><small>Anonymous resident · ${age(e.ts)}</small>`
-  : `<b>${esc(e.point ?? "")} · ${esc(e.detail ?? "")}</b>${said(e)}<br><small>${e.channel} · ${age(e.ts)}</small>`;
+const said = (e: LogEvent) => `<small class="said">“${esc(e.body)}”</small>`;
+const messagePopup = (e: LogEvent) => e.kind === "hazard"  // title, then where and when in one small line, then the words
+  ? `<b>${HAZARD_LABEL[e.detail as HazardKind] ?? "Danger"} on the way</b><br><small>${esc(e.village ?? "")} → ${esc(e.point ?? "")} · ${age(e.ts)}</small>${said(e)}`
+  : `<b>${esc(e.point ?? "")} · ${esc(e.detail ?? "")}</b><br><small>${e.channel} · ${age(e.ts)}</small>${said(e)}`;
 const FAN = [0, 1, -1, 2, -2, 3, -3];  // k-th message at one place: 0 in the middle, then alternately either side
 const nearestTo = (v: Village, all: Waterpoint[], n: number) =>
   all.map((w) => ({ w, km: distanceKm(v, w) })).sort((a, b) => a.km - b.km).slice(0, n).map((x) => x.w);
@@ -132,14 +132,14 @@ export default function WaterMap({ waterpoints, villages = [], reports = [], sin
           const t = Math.min(0.85, Math.max(0.15, 0.5 + 0.13 * FAN[k]));
           pos = [v!.lat + (w.lat - v!.lat) * t, v!.lon + (w.lon - v!.lon) * t];
           icon = L.divIcon({ html: TRIANGLE, className: "hz" + fresh, iconSize: [30, 27], iconAnchor: [15, 22] });
-        } else {  // on a small circle around the water point, starting above it
-          const a = -Math.PI / 2 + FAN[k] * 0.75;
+        } else {  // the first one inside the water point's circle, further ones on a small circle around it
+          const a = -Math.PI / 2 + FAN[k] * 0.75, r = k === 0 ? 0 : 24;
           pos = [w.lat, w.lon];
           icon = L.divIcon({ html: badge(e.detail && e.detail in COLOR ? (e.detail as Status) : "broken"), className: "msg" + fresh, iconSize: [20, 20],
-                             iconAnchor: [10 - Math.round(24 * Math.cos(a)), 10 - Math.round(24 * Math.sin(a))] });
+                             iconAnchor: [10 - Math.round(r * Math.cos(a)), 10 - Math.round(r * Math.sin(a))] });
         }
         const mark = L.marker(pos, { pane: "hazards", keyboard: true, title: hazard ? "Danger on the way" : `Report: ${e.point} ${e.detail}`, icon })
-          .bindPopup(html, { closeButton: false, autoPan: false, autoClose: false, className: "hz-pop" }).addTo(m);
+          .bindPopup(html, { closeButton: false, autoPan: false, autoClose: false, className: hazard ? "hz-pop below" : "hz-pop" }).addTo(m);
         msgs.current[e.id] = { mark, html };
       });
     }

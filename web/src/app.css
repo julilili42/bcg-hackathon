@@ -13,13 +13,6 @@ body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-seri
 .stage { height: 100vh; overflow: hidden; background: var(--bg); color: var(--text); display: grid; grid-template-columns: 1fr 4fr 1fr; align-items: center; gap: clamp(16px, 2vw, 40px); padding: 3vh 2vw; }
 
 .left { display: flex; flex-direction: column; align-items: center; gap: 3vh; min-width: 0; }
-.left .call-me { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.left .cta { font-family: "Nokia Cellphone FC", monospace; font-size: 26px; color: #fff; letter-spacing: .04em; text-transform: uppercase; }
-.left .num { font-family: "Nokia Cellphone FC", monospace; font-size: 18px; color: #9fd3b0; white-space: nowrap; }
-.left .eg { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.3; }  /* an example exchange, iMessage style */
-.left .eg span { max-width: 88%; padding: 6px 11px; border-radius: 16px; }
-.left .eg .sent { align-self: flex-end; background: #1b84ff; color: #fff; border-bottom-right-radius: 4px; }
-.left .eg .got { align-self: flex-start; background: #2c2c2e; color: #e8e8ea; border-bottom-left-radius: 4px; }
 .phone.buzz { animation: buzz .7s linear; }
 @keyframes buzz { 10%, 50%, 90% { transform: translateX(-3px) rotate(-.6deg); } 30%, 70% { transform: translateX(3px) rotate(.6deg); } 100% { transform: none; } }
 .phone { position: relative; width: 100%; max-width: calc(84vh * 439 / 1000); aspect-ratio: 439 / 1000; container-type: inline-size; user-select: none; filter: drop-shadow(0 30px 40px rgba(0,0,0,.6)); }
@@ -54,9 +47,11 @@ body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-seri
 .panel { height: 94vh; min-width: 0; background: var(--panel); border-radius: 16px; padding: 16px; overflow: hidden; display: flex; flex-direction: column; }
 .panel .scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .panel h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-table.wp { width: 100%; height: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.2; }  /* the rows share the column's full height */
-table.wp td { padding: 4px 6px; border-top: 1px solid #2b2f36; vertical-align: middle; }
-table.wp td .sub { font-size: 10.5px; color: var(--muted); white-space: nowrap; margin-top: 1px; }
+table.wp { width: 100%; height: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.15; }  /* the rows share the column's full height */
+table.wp td { padding: 2px 6px; border-top: 1px solid #2b2f36; vertical-align: middle; }
+table.wp td:first-child { width: 100%; max-width: 0; }  /* the name column takes the rest, long names end in "…" */
+table.wp td:first-child div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+table.wp td .sub { font-size: 10px; color: var(--muted); white-space: nowrap; margin-top: 0; }
 table.wp td.status { font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: .06em; text-align: right; white-space: nowrap; }
 table.wp td.status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: currentColor; }
 table.wp tr.hot td { background: rgba(255,255,255,.07); font-weight: 600; }
@@ -108,13 +103,17 @@ path.vdot.on { display: inline; }
 .hz svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 @keyframes hzp { 50% { transform: scale(1.18); } }
 @media (prefers-reduced-motion: reduce) { .hz svg { animation: none; } }
-.hz-pop .leaflet-popup-content { white-space: normal; min-width: 220px; max-width: 260px; }
+.hz-pop .leaflet-popup-content { white-space: normal; min-width: 180px; max-width: 230px; line-height: 1.3; }
+/* a danger's popup opens below the triangle, so the route above stays visible */
+.leaflet-popup.below { bottom: auto !important; top: 16px; }
+.leaflet-popup.below .leaflet-popup-tip-container { position: absolute; top: -20px; transform: rotate(180deg); }
+.hz-pop .leaflet-popup-content small.said { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; }
 .legend .lg-village { width: 7px; height: 7px; margin: 0 7px 0 1px; border: 2px solid #1b2430; background: #fff; }
 .legend .lg-hazard svg { width: 12px; height: 11px; margin-right: 5px; vertical-align: -1px; }
 
 /* ---------- message feed (right panel) and message symbols on the map ---------- */
 .panel .feed { flex: 3 1 0; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; padding-right: 2px; }
-.panel .wpbox { flex: 2 1 0; }
+.panel .wpbox { flex: none; overflow: visible; }  /* every water point visible; the feed above takes the rest */
 .panel h2 small { letter-spacing: 0; font-size: 11px; color: var(--text); background: #2b2f36; border-radius: 999px; padding: 1px 7px; }
 .empty-feed { color: var(--muted); font-size: 13px; margin: 6px 2px; }
 .msg-card { all: unset; box-sizing: border-box; display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 8px 9px; border-radius: 10px;
@@ -127,7 +126,7 @@ path.vdot.on { display: inline; }
 .msg-card .ic svg { width: 20px; height: auto; }
 .msg-card .tx { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .msg-card .t { font-weight: 650; }
-.msg-card .sub { font-size: 10.5px; color: var(--muted); }
+.msg-card .sub { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg-card .said { font-size: 12px; color: #b9bfc8; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .msg-card.fresh { animation: arrive .8s cubic-bezier(.2,.9,.3,1.1) both; }
 @keyframes arrive { 0% { opacity: 0; transform: translateY(-14px) scale(.97); background: #5a2a26; } 60% { opacity: 1; transform: none; background: #4a2c29; } 100% { opacity: 1; transform: none; } }

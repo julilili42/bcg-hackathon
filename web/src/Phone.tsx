@@ -2,7 +2,7 @@
 // Navi key = call, C = hang up / clear, digits = DTMF during a call (language menu: 1 sw, 2 en, 3 de, 4 fr). Middle: the map, right: the live water points.
 import { useEffect, useRef, useState } from "react";
 import { Call, Device } from "@twilio/voice-sdk";
-import { COLOR, HAZARD_LABEL, age, isReport, useEvents, useFocus, useSince, type HazardKind, type LogEvent, type Picked, type Status } from "./api";
+import { COLOR, HAZARD_LABEL, age, isReport, useEvents, useFocus, useSince, type HazardKind, type Picked, type Status } from "./api";
 import { CLEAR, DIGITS, LCD, NAVI, ROCKER } from "./hits";
 import WaterMap, { TRIANGLE, badge } from "./WaterMap";
 
@@ -11,7 +11,6 @@ type Lcd = { lines: Line[]; status: string; soft: string; on: boolean };
 
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 const pretty = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
-const spaced = (n: string) => n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 $1 $2 $3");
 const wrap = (text: string, width: number): Line[] => {  // three LCD lines, word-wrapped, the rest cut
   const lines: string[] = [];
   for (const word of text.split(/\s+/)) {
@@ -23,7 +22,7 @@ const wrap = (text: string, width: number): Line[] => {  // three LCD lines, wor
 };
 
 export default function Phone() {
-  const [lcd, setLcd] = useState<Lcd>({ lines: [["big", "NOKIA"], "WaterLine", "loading"], status: "", soft: "", on: false });
+  const [lcd, setLcd] = useState<Lcd>({ lines: [["big", "NOKIA"], "Echo", "loading"], status: "", soft: "", on: false });
   const [number, setNumber] = useState("+18654598142");
   const [inCall, setInCall] = useState(false);
   const [pressed, setPressed] = useState("");
@@ -39,7 +38,7 @@ export default function Phone() {
 
   const show = (lines: Line[], status = "", soft = "Call") => setLcd((l) => ({ ...l, lines, status, soft }));
   const err = (who: string, text: string) => setErrors((e) => [{ who, text }, ...e]);
-  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "WaterLine"]); };
+  const idle = (lines?: Line[]) => { setInCall(false); show(lines ?? [["big", dialed.current || pretty(num.current)], "Echo"]); };
   const elapsed = () => fmt(Math.round((Date.now() - startedAt.current) / 1000));
 
   async function dial() {
@@ -110,7 +109,6 @@ export default function Phone() {
 
   // an SMS arrives: the phone buzzes, the LCD says "1 message received", then shows it, then goes back to idle
   const [buzz, setBuzz] = useState(false);
-  const [last, setLast] = useState<LogEvent | null>(null);
   const seen = useRef<string | null>(null);  // newest event id of the last poll; null = first poll, nothing is new
   const timers = useRef<number[]>([]);
   useEffect(() => {
@@ -120,7 +118,6 @@ export default function Phone() {
     const fresh = data.events.slice(0, Math.max(0, ids.indexOf(seen.current))).filter((e) => e.channel === "sms");
     seen.current = ids[0];
     if (!fresh.length) return;
-    setLast(fresh[0]);  // the example under TEXT ME becomes the real exchange
     if (call.current) return;  // during a call the display belongs to the call
     setBuzz(true); setTimeout(() => setBuzz(false), 700);
     show([["big", `${fresh.length} message${fresh.length > 1 ? "s" : ""}`], "received"], "✉", "");
@@ -132,11 +129,6 @@ export default function Phone() {
   return (
     <div className={`stage${debug ? " debug" : ""}`}>
       <div className="left">
-      <div className="call-me"><span className="cta">text me</span><span className="num">{spaced(number)}</span>
-        <div className="eg">
-          <span className="sent">{last ? last.body : "Cibari spring is broken"}</span>
-          <span className="got">{last ? last.reply : "Recorded: Cibari spring broken. Nearest working: Karemera spring, ~5 min on foot."}</span>
-        </div></div>
       <div className={`phone${buzz ? " buzz" : ""}`}>
         <img src={`${import.meta.env.BASE_URL}nokia3310.png`} alt="Nokia 3310" draggable={false} />
         <div className={`lcd${lcd.on ? " on" : ""}`} style={LCD} aria-live="polite">
@@ -169,7 +161,7 @@ export default function Phone() {
               <span className="ic" dangerouslySetInnerHTML={{ __html: e.kind === "hazard" ? TRIANGLE : badge(e.detail && e.detail in COLOR ? (e.detail as Status) : "broken") }} />
               <span className="tx">
                 <span className="t">{e.kind === "hazard" ? `${HAZARD_LABEL[e.detail as HazardKind] ?? "Danger"} on the way` : `${e.point} · ${e.detail}`}</span>
-                <span className="sub">{e.kind === "hazard" ? `${e.village} → ${e.point} · anonymous` : `${e.village} · ${e.channel}`} · {age(e.ts)}</span>
+                <span className="sub">{e.kind === "hazard" ? `${e.village} → ${e.point}` : `${e.village} · ${e.channel}`} · {age(e.ts)}</span>
                 <span className="said">“{e.body}”</span>
               </span>
             </button>
@@ -179,7 +171,7 @@ export default function Phone() {
         <div className="scroll wpbox"><table className="wp">
           <tbody>{data.waterpoints.map((w) => (
             <tr key={w.id} className={hot.has(w.id) ? "hot" : ""}>
-              <td><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}</div></td>
+              <td title={w.name}><div>{w.name}</div><div className="sub">{w.village} · {age(w.updated)}</div></td>
               <td className={`status ${w.status}`}>{w.status}</td>
             </tr>
           ))}</tbody>
